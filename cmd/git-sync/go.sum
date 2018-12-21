@@ -1,0 +1,17 @@
+github.com/amoghe/distillog v0.0.0-20180726233512-ae382b35b717 h1:cdJG5d0xtOHgeev36KoJCRZMOct8GzxXCcJgyzUyUd4=
+github.com/amoghe/distillog v0.0.0-20180726233512-ae382b35b717/go.mod h1:7DXz/QzS6kSSk2b7TqXmf4RGWX3bVsdyxpwWpQ1i0J4=
+github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
+github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
+github.com/hashicorp/go-multierror v1.0.0 h1:iVjPR7a6H0tWELX5NxNe7bYopibicUzc7uPribsnS6o=
+github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
+github.com/mattn/go-isatty v0.0.4 h1:bnP0vzxcAdeI1zdubAl5PjU6zsERjGZb7raWodagDYs=
+github.com/mattn/go-isatty v0.0.4/go.mod h1:M+lRXTBqGeGNdLjl/ufCoiOlB5xdOkqRJdNxMWT7Zi4=
+github.com/msolo/cmdflag v0.0.0-20181212201819-a7d2c87e9616 h1:JukW/my9saC3cufx2BzRtGJpYv3L6/DQBJfMkoRzekY=
+github.com/msolo/cmdflag v0.0.0-20181212201819-a7d2c87e9616/go.mod h1:Iufj4HA13ozsUxojKnhbYUUNQ8wPk5jJM6jUOcf5yzA=
+github.com/msolo/git-mg v0.0.0-20181216024804-691611628824 h1:WTO/UIFesmi7IyQwcYQQrVdYhtG00UVPcNOFqSKlWvI=
+github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/posener/complete v1.2.1 h1:LrvDIY//XNo65Lq84G/akBuMGlawHvGBABv8f/ZN6DI=
+github.com/posener/complete v1.2.1/go.mod h1:6gapUrK/U1TAN7ciCoNRIdVC5sbdBTUh1DKN0g6uH7E=
+golang.org/x/sync v0.0.0-20181108010431-42b317875d0f h1:Bl/8QSvNqXvPGPGXa2z5xUTmV7VDcZyvRZ+QQXkXTZQ=
+golang.org/x/sync v0.0.0-20181108010431-42b317875d0f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=

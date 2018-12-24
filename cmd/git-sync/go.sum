@@ -13,6 +13,8 @@ github.com/mattn/go-isatty v0.0.4/go.mod h1:M+lRXTBqGeGNdLjl/ufCoiOlB5xdOkqRJdNx
 github.com/msolo/cmdflag v0.0.0-20181212201819-a7d2c87e9616 h1:JukW/my9saC3cufx2BzRtGJpYv3L6/DQBJfMkoRzekY=
 github.com/msolo/cmdflag v0.0.0-20181212201819-a7d2c87e9616/go.mod h1:Iufj4HA13ozsUxojKnhbYUUNQ8wPk5jJM6jUOcf5yzA=
 github.com/msolo/git-mg v0.0.0-20181216024804-691611628824 h1:WTO/UIFesmi7IyQwcYQQrVdYhtG00UVPcNOFqSKlWvI=
+github.com/msolo/go-bis/flock v0.0.0-20181224211903-b2ed2714c115 h1:OgWzBD1PkrTK7EF1xl6zDAUmqC0DBp18dYBEAdoCCN0=
+github.com/msolo/go-bis/flock v0.0.0-20181224211903-b2ed2714c115/go.mod h1:eBXhTvx+j7LNRUQY0KlN6RRqvPlmF3P5u7rXvIFqaOM=
 github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/posener/complete v1.2.1 h1:LrvDIY//XNo65Lq84G/akBuMGlawHvGBABv8f/ZN6DI=

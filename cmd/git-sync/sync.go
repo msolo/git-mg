@@ -22,7 +22,7 @@ import (
 
 	log "github.com/amoghe/distillog"
 	isatty "github.com/mattn/go-isatty"
-	"github.com/msolo/git-mg/flock"
+	"github.com/msolo/go-bis/flock"
 	"github.com/tebeka/atexit"
 )
 

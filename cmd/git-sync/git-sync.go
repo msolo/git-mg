@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+
 	"os"
+	"os/exec"
 	"time"
+
+	log "github.com/amoghe/distillog"
 
 	"github.com/msolo/cmdflag"
 )
@@ -30,19 +34,27 @@ func newTrace(name string) *traceSpan {
 	return &traceSpan{name: name, start: time.Now()}
 }
 
+func handleCmdError(err error) {
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		fmt.Fprintln(os.Stderr, "  cmd stderr:", string(exitErr.Stderr))
+	}
+}
+
+func exitOnError(err error) {
+	if err != nil {
+		handleCmdError(err)
+		log.Errorf("%s\n", err)
+		panic(ExitCode(1))
+	}
+}
+
 func runPush(ctx context.Context, cmd *cmdflag.Command, args []string) {
 	cfg, err := readConfigFromGit()
-	if err != nil {
-		log.Fatal(err)
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = fullSync(cfg, wd)
-	if err != nil {
-		log.Fatal(err)
-	}
+	exitOnError(err)
+
+	gitWorkdir := getGitWorkdir()
+	_, err = fullSync(cfg, gitWorkdir)
+	exitOnError(err)
 }
 
 var cmdMain = &cmdflag.Command{
@@ -58,8 +70,24 @@ var subcommands = []*cmdflag.Command{
 	cmdPush,
 }
 
+type ExitCode int
+
+func (ec ExitCode) Error() string {
+	return fmt.Sprintf("ExitCode %v", ec)
+}
+
 func main() {
 	var timeout time.Duration
+	defer func() {
+		if r := recover(); r != nil {
+			switch r.(type) {
+			case ExitCode:
+				os.Exit(int(r.(ExitCode)))
+			}
+			fmt.Println("Recovered in f", r)
+			os.Exit(1)
+		}
+	}()
 
 	cmdMain.BindFlagSet(map[string]interface{}{"timeout": &timeout})
 

@@ -23,6 +23,7 @@ import (
 	log "github.com/amoghe/distillog"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/msolo/git-mg/flock"
+	"github.com/tebeka/atexit"
 )
 
 func getGitWorkdir() string {
@@ -111,9 +112,8 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 		sshArgs = append(sshArgs, "-t")
 	}
 
-	optionArgs := make([]string, 0, len(sshOptions))
 	for k, v := range sshOptions {
-		optionArgs = append(optionArgs, "-o"+k+"="+v)
+		sshArgs = append(sshArgs, "-o"+k+"="+v)
 	}
 	if addr != "" {
 		sshArgs = append(sshArgs, addr)
@@ -126,8 +126,8 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 	return sshArgs
 }
 
-func makeSSHCmd(cfg *config, addr string, bashCmdArgs []string) *exec.Cmd {
-	cmd := exec.Command("ssh", makeSSHArgs(cfg, addr, bashCmdArgs)...)
+func makeSSHCmd(cfg *config, addr string, bashCmdArgs []string) *Cmd {
+	cmd := Command("ssh", makeSSHArgs(cfg, addr, bashCmdArgs)...)
 	cmd.Env = getRestrictedEnv()
 	return cmd
 
@@ -178,7 +178,11 @@ func readSyncCookie(workdir string) (sc *syncCookie, err error) {
 
 func writeSyncCookie(workdir string, sc *syncCookie) error {
 	fname := path.Join(workdir, ".git/git-sync-cookie.json")
-	data, err := json.Marshal(sc)
+	tmpSc := &syncCookie{LastHeadHash: sc.headHash,
+		LastMergeBaseHash: sc.mergeBaseHash,
+		LastSyncStartNs:   sc.syncStartNs,
+	}
+	data, err := json.Marshal(tmpSc)
 	if err != nil {
 		return errors.Wrap(err, "failed marshaling sync cookie")
 	}
@@ -209,13 +213,13 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	// should just shut off watchman altogether.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	fsMonCmd := exec.CommandContext(ctx, cfg.fsmonitorLocalPath, "1", strconv.FormatInt(ts, 10))
+	fsMonCmd := CommandContext(ctx, cfg.fsmonitorLocalPath, "1", strconv.FormatInt(ts, 10))
 	fsMonCmd.Env = getRestrictedEnv()
 	fsMonCmd.Dir = workdir
 
 	out, err := fsMonCmd.Output()
 	if err != nil {
-		log.Warningln("git fs monitor failed:", err)
+		log.Warningln("git fsmonitor failed:", err)
 		return nil, err
 	}
 
@@ -269,14 +273,13 @@ func stringSet2Slice(ss map[string]bool) []string {
 }
 
 func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedDirs []string, renamedFiles []string, err error) {
-	entries := strings.Split(string(data), "\000")
-	entries = entries[0 : len(entries)-1]
+	entries := splitNullTerminated(string(data))
 	modifiedFiles = make([]string, 0, 16)
 	untrackedDirs = make([]string, 0, 16)
 	renamedFiles = make([]string, 0, 16)
 	for i := 0; i < len(entries); i++ {
 		entry := entries[i]
-		status, fname := entry[:2], entry[2:]
+		status, fname := entry[:2], entry[3:]
 		if strings.HasSuffix(fname, "/") {
 			untrackedDirs = append(untrackedDirs, fname)
 			continue
@@ -370,7 +373,7 @@ func gitRenamedFiles(workdir string, filePaths []string) ([]string, error) {
 	return renamedFiles, err
 }
 
-func gitSyncCmd(cfg *config, sc *syncCookie) (*exec.Cmd, error) {
+func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
 	bashCmdArgs := make([]string, 0, 16)
 	// Plumb some handy profiling variables through.
 	for _, env := range os.Environ() {
@@ -398,8 +401,9 @@ func gitSyncCmd(cfg *config, sc *syncCookie) (*exec.Cmd, error) {
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, 2048))
-	tmpl := template.New("remoteGitCmd").Option("missingkey=error")
-	if err := tmpl.ExecuteTemplate(buf, remoteGitCmd, cmdFmt); err != nil {
+	tmpl := template.Must(template.New("remoteGitCmd").Parse(remoteGitCmd))
+	tmpl.Option("missingkey=error")
+	if err := tmpl.Execute(buf, cmdFmt); err != nil {
 		return nil, err
 	}
 	bashCmdArgs = append(bashCmdArgs, buf.String())
@@ -420,20 +424,20 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 	}
 
 	x := func() error {
-		changedFiles, err := getGitStatus(workdir)
+		files, err := getGitStatus(workdir)
 		if err != nil {
 			return err
 		}
-		updateSet(changedFiles)
+		updateSet(files)
 		return nil
 	}
 
 	y := func() error {
-		changedFiles, err := getGitDiffChanges(workdir, sc.mergeBaseHash)
+		files, err := getGitDiffChanges(workdir, sc.mergeBaseHash)
 		if err != nil {
 			return err
 		}
-		updateSet(changedFiles)
+		updateSet(files)
 		return nil
 	}
 	eg := &errgroup.Group{}
@@ -453,7 +457,7 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 	return changedFiles, nil
 }
 
-func remoteGitFetchCmd(workdir string, cfg *config) (*exec.Cmd, error) {
+func remoteGitFetchCmd(workdir string, cfg *config) (*Cmd, error) {
 	shCmd := "flock --nonblock {{.RemoteDir}}/.git/FETCH_HEAD {{.GitRemotePath}} -C {{.RemoteDir}} fetch -q origin master < /dev/null > /dev/null 2>&1 &"
 	tmpl := template.New("remoteGitFetchCmd").Option("missingkey=error")
 	shCmdFmt := struct {
@@ -464,7 +468,7 @@ func remoteGitFetchCmd(workdir string, cfg *config) (*exec.Cmd, error) {
 	if err := tmpl.ExecuteTemplate(buf, shCmd, shCmdFmt); err != nil {
 		return nil, err
 	}
-	cmd := makeSSHCmd(cfg, cfg.remoteSSHAddr(), []string{buf.String()})
+	cmd := makeSSHCmd(cfg, "", []string{buf.String()})
 	return cmd, nil
 }
 
@@ -497,7 +501,7 @@ func tmpdir() string {
 	return dir
 }
 
-func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string) (*exec.Cmd, error) {
+func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string) (*Cmd, error) {
 	// Replace file paths that are children of deleted directories with the top-most deleted
 	// directory below the workdir.  It's not clear that this is always safe behavior for rsync,
 	// but it should be safe for our use case.  This is related to an rsync bug, but the patch
@@ -518,11 +522,13 @@ func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string)
 		sanitizedFilePaths = append(sanitizedFilePaths, k)
 	}
 
-	tmpFile, err := ioutil.TempFile(tmpdir(), "git-sync-file-manifest")
+	tmpFile, err := ioutil.TempFile(tmpdir(), "git-sync-file-manifest-")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tmpFile.Name())
+	atexit.Register(func() {
+		_ = os.Remove(tmpFile.Name())
+	})
 
 	sort.Strings(sanitizedFilePaths)
 	_, err = tmpFile.WriteString(joinNullTerminated(sanitizedFilePaths))
@@ -532,13 +538,11 @@ func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string)
 
 	// fixme(msolo) ssh interface feels klunky
 	sshArgs := []string{"ssh"}
-	sshArgs = append(sshArgs, makeSSHArgs(cfg, cfg.remoteSSHAddr(), nil)...)
+	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
 	for i, arg := range sshArgs {
 		sshArgs[i] = bashQuote(arg)
 	}
 	rsyncCmdArgs := []string{
-		cfg.rsyncLocalPath,
-		"--rsync-path", cfg.rsyncRemotePath,
 		"-czlptgo",
 		"-e", strings.Join(sshArgs, " "),
 		"--delete-missing-args",
@@ -546,11 +550,13 @@ func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string)
 		"--force",
 		"--from0",
 		"--files-from", tmpFile.Name(),
-		workdir,
-		cfg.remoteURL,
 	}
+	if cfg.rsyncRemotePath != "" {
+		rsyncCmdArgs = append(rsyncCmdArgs, "--rsync-path", cfg.rsyncRemotePath)
+	}
+	rsyncCmdArgs = append(rsyncCmdArgs, workdir, cfg.remoteURL)
 
-	cmd := exec.Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
+	cmd := Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
 	cmd.Env = getRestrictedEnv()
 	return cmd, nil
 }
@@ -571,12 +577,12 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 		return nil, err
 	}
 	foundResults := false
-	if !sc.gitStateChanged() {
+	if !sc.gitStateChanged() && cfg.fsmonitorEnabled() {
 		// If the git state changed, we cannot rely on the fast list of changes
 		// because the remote mirror working directory will need its state reset.
 		changedFiles, err = getChangesViaFsMonitor(cfg, workdir, sc)
 		if err != nil {
-			log.Warningf("git-fs-monitor failed to return results: %s", err)
+			log.Warningf("git fsmonitor failed to return results: %s", err)
 		} else {
 			foundResults = true
 		}
@@ -588,27 +594,39 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 		if err != nil {
 			return nil, err
 		}
-		bgGroup.Go(cmd.Run)
+		bgGroup.Go(func() error {
+			_, err := cmd.Output()
+			return err
+		})
 	}
 	// FIXME(msolo) bgGroup might need to be canceled on return
+
+	var syncCmd *Cmd
 
 	if !foundResults {
 		// fixme: should this return new synccookie with git state?
 		// this is hiding the implementation of sync for peformance
+		syncCmd, err = gitSyncCmd(cfg, sc)
+		if err != nil {
+			return nil, err
+		}
 
-		bgGroup.Go(func() error {
-			syncCmd, err := gitSyncCmd(cfg, sc)
-			if err != nil {
-				return err
-			}
-			return syncCmd.Run()
-		})
+		syncErr := make(chan error)
+		go func() {
+			_, err := syncCmd.Output()
+			syncErr <- err
+		}()
 
 		changedFiles, err = getChangesViaStatus(workdir, sc)
 		if err != nil {
 			// At this point if we are unable to get changes, it's fatal.
 			return nil, err
 		}
+
+		if err = <-syncErr; err != nil {
+			return nil, err
+		}
+
 	}
 
 	// FIXME(msolo)
@@ -628,7 +646,7 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 		}
 	}
 	// Only update the sync cookie if we actually sent some changes.
-	updateSyncCookie := len(changedFiles) > 0 || sc.gitStateChanged()
+	updateSyncCookie := (len(changedFiles) > 0 || sc.gitStateChanged())
 	if updateSyncCookie {
 		if err := writeSyncCookie(workdir, sc); err != nil {
 			log.Warningf("failed to write sync cookie: %s", err)
@@ -637,10 +655,14 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 	if err := bgGroup.Wait(); err != nil {
 		// If we scheduled a background fetch, just wait to prevent zombies.
 		// We don't care if there was an error.
-		log.Warningf("background process failed: %s", err)
+		if exitErr, ok := errors.Cause(err).(*exec.ExitError); ok {
+			log.Warningf("background process failed: %s\n%s", exitErr, exitErr.Stderr)
+		} else {
+			log.Warningf("background process failed: %s", err)
+		}
 	}
 
-	log.Infof("git-sync %d files", len(changedFiles))
+	log.Infof("git-sync %d files %v", len(changedFiles), changedFiles)
 
 	// Return all changed files. This can be used to detect files
 	// that changed on remote back to the checked-in version.
@@ -659,11 +681,20 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 // correct, up until there is out-of-band tampering with the remote workdir. Unfortunately, there is
 // no simple, cheap way to detect tampering.
 const remoteGitCmd = `
+set -u
+set -o pipefail
+
 CHECKOUT_REQUIRED={{.CheckoutRequired}}
 CLEAN_REQUIRED={{.CleanRequired}}
 SERIALIZED_CHECKOUT_REQUIRED=0
 
-if [[ $({{.GitRemotePath}} -C {{.RemoteDir}} rev-parse HEAD) != {{.CommitHash}} ]]; then
+head_hash=$({{.GitRemotePath}} -C {{.RemoteDir}} rev-parse HEAD)
+if [[ $head_hash == "" ]]; then
+  echo "ERROR: unable to find HEAD revision on remote workdir" >&2
+  exit 1
+fi
+
+if [[ $head_hash != {{.CommitHash}} ]]; then
     if ! {{.GitRemotePath}} -C {{.RemoteDir}} cat-file -e {{.CommitHash}}; then
         {{.GitRemotePath}} -C {{.RemoteDir}} fetch -q origin master || exit 1
         # If the hash still does not exist, we try to error out with a nice error message

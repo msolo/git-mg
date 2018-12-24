@@ -10,3 +10,6 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+cmd/git-fsmonitor/git-fsmonitor
+cmd/git-sync/git-sync

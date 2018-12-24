@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -33,20 +31,21 @@ func (cfg config) remoteDir() string {
 	return strings.Split(cfg.remoteURL, ":")[1]
 }
 
+func (cfg config) fsmonitorEnabled() bool {
+	return cfg.fsmonitorLocalPath != ""
+}
+
 var defaultConfig = config{
-	sshControlPath: "/tmp/ssh_mux_%h_%p_%r",
-	rsyncLocalPath: "/usr/local/bin/rsync",
-	remoteName:     "sync",
+	sshControlPath:  "/tmp/ssh_mux_%h_%p_%r",
+	gitRemotePath:   "git",
+	gitLocalPath:    "git",
+	rsyncRemotePath: "rsync",
+	rsyncLocalPath:  "/usr/local/bin/rsync", // Mac specific :(
+	remoteName:      "sync",
 }
 
 type gitWorkDir struct {
 	dir string
-}
-
-func handleCmdError(err error) {
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		fmt.Fprintln(os.Stderr, "  cmd stderr:", string(exitErr.Stderr))
-	}
 }
 
 func getRestrictedEnv() []string {
@@ -60,40 +59,50 @@ func getRestrictedEnv() []string {
 			env = append(env, key+"="+val)
 		}
 	}
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "GIT_TRACE") {
+			env = append(env, kv)
+		}
+	}
+
 	return env
 }
 
-func (wd *gitWorkDir) makeCmd(args ...string) *exec.Cmd {
+func (wd *gitWorkDir) makeCmd(args ...string) *Cmd {
 	gitArgs := []string{"-C", wd.dir}
 	gitArgs = append(gitArgs, args...)
-	cmd := exec.Command("git", gitArgs...)
+	cmd := Command("git", gitArgs...)
 	cmd.Env = getRestrictedEnv()
 	return cmd
 }
 
 func readConfigFromGit() (*config, error) {
 	wd := gitWorkDir{"."}
-	gitCmd := wd.makeCmd("config", "--get-regexp", "^sync\\.")
-	output, err := gitCmd.CombinedOutput()
+	gitCmd := wd.makeCmd("config", "-z", "-l")
+	output, err := gitCmd.Output()
 	if err != nil {
 		return nil, errors.WithMessage(err, "git config failed")
 	}
-	lines := strings.Split(string(output), "\n")
+	entries := splitNullTerminated(string(output))
 	configMap := make(map[string]string)
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		keyValTuple := strings.SplitN(line, " ", 1)
+	for _, ent := range entries {
+		keyValTuple := strings.SplitN(ent, "\n", 2)
+		if len(keyValTuple) != 2 {
+			fmt.Println("invalid:", len(keyValTuple), keyValTuple)
+		}
 		configMap[keyValTuple[0]] = keyValTuple[1]
 	}
 
 	cfg := defaultConfig
-	cfg.remoteName = configMap["remote_name"]
-
-	gitCmd = wd.makeCmd("remote", "get-url", cfg.remoteName)
-	output, err = gitCmd.CombinedOutput()
-	if err != nil {
-		return nil, errors.WithMessage(err, "git remote failed")
+	if remoteName := configMap["sync.remote_name"]; remoteName != "" {
+		cfg.remoteName = remoteName
 	}
-	cfg.remoteURL = string(bytes.TrimSpace(output))
+
+	remoteURLKey := "remote." + cfg.remoteName + ".url"
+	cfg.remoteURL = strings.TrimSpace(configMap[remoteURLKey])
+	if cfg.remoteURL == "" {
+		return nil, errors.Errorf("no url specified for remote name %q", cfg.remoteName)
+	}
+	cfg.fsmonitorLocalPath = configMap["core.fsmonitor"]
 	return &cfg, nil
 }

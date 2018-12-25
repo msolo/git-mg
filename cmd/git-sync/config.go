@@ -9,18 +9,18 @@ import (
 )
 
 type config struct {
-	sshControlPath      string
-	gitLocalPath        string
-	gitRemotePath       string
-	rsyncLocalPath      string
-	rsyncRemotePath     string
-	watchmanLocalPath   string
-	fsmonitorLocalPath  string
-	gitSyncExcludePaths []string
-	remoteURL           string
-	useTarSync          bool
-	useFsNotify         bool
-	remoteName          string
+	sshControlPath     string
+	gitLocalPath       string
+	gitRemotePath      string
+	rsyncLocalPath     string
+	rsyncRemotePath    string
+	watchmanLocalPath  string
+	fsmonitorLocalPath string
+	excludePaths       []string
+	remoteURL          string
+	useTarSync         bool
+	useFsNotify        bool
+	remoteName         string
 }
 
 func (cfg config) remoteSSHAddr() string {
@@ -96,6 +96,10 @@ func readConfigFromGit() (*config, error) {
 	cfg := defaultConfig
 	if remoteName := configMap["sync.remote_name"]; remoteName != "" {
 		cfg.remoteName = remoteName
+	}
+
+	if excludePaths := configMap["sync.exclude_paths"]; excludePaths != "" {
+		cfg.excludePaths = strings.Split(strings.TrimSpace(excludePaths), ":")
 	}
 
 	remoteURLKey := "remote." + cfg.remoteName + ".url"

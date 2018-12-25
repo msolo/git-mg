@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"os"
-	"os/exec"
 	"time"
 
-	log "github.com/amoghe/distillog"
+	"github.com/tebeka/atexit"
 
 	"github.com/msolo/cmdflag"
 )
@@ -34,17 +32,9 @@ func newTrace(name string) *traceSpan {
 	return &traceSpan{name: name, start: time.Now()}
 }
 
-func handleCmdError(err error) {
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		fmt.Fprintln(os.Stderr, "  cmd stderr:", string(exitErr.Stderr))
-	}
-}
-
 func exitOnError(err error) {
 	if err != nil {
-		handleCmdError(err)
-		log.Errorf("%s\n", err)
-		panic(ExitCode(1))
+		atexit.Fatal(err)
 	}
 }
 
@@ -58,8 +48,35 @@ func runPush(ctx context.Context, cmd *cmdflag.Command, args []string) {
 }
 
 var cmdMain = &cmdflag.Command{
-	Name:      "git-sync",
-	UsageLong: `git-sync - a tool to sync working directories`,
+	Name: "git-sync",
+	UsageLong: `git-sync - a tool to sync working directories
+
+git-sync uses SSH, rsync and git (and optionally watchman via
+fsmonitor) to efficiently copy local working directory changes to a
+mirrored copy on a different machine. The goal is generally to be able
+to reliably sync (even on an LTE connection) within 500ms even if the 
+repo contains > 250k files.
+
+git-sync is potentially destructive to the target working directory - it will
+clean, reset and checkout changes to ensure the source and destination
+working directories are equivalent.
+
+Config:
+git-sync reads a few variables from the [sync] section of the git config:
+
+sync.remote_name (default "sync")
+  This determines the remote target to use for syncing changes.
+
+sync.exclude_paths (default empty)
+  A colon-delimited list of patterns that will be passed to git clean
+  on the remote target.  This allows some remote data to persist, even
+  if it does not exist on the source workdir.
+
+git-sync uses the remote name to determine the SSH URL that is used as
+the target for rsync operations.
+
+If core.fsmonitor is configured it will be used to find changes quickly.
+`,
 	Flags: []cmdflag.Flag{
 		{"timeout", cmdflag.FlagTypeDuration, 0 * time.Millisecond, "timeout for command execution", nil},
 	},
@@ -77,17 +94,9 @@ func (ec ExitCode) Error() string {
 }
 
 func main() {
+	defer atexit.Exit(0)
+
 	var timeout time.Duration
-	defer func() {
-		if r := recover(); r != nil {
-			switch r.(type) {
-			case ExitCode:
-				os.Exit(int(r.(ExitCode)))
-			}
-			fmt.Println("Recovered in f", r)
-			os.Exit(1)
-		}
-	}()
 
 	cmdMain.BindFlagSet(map[string]interface{}{"timeout": &timeout})
 

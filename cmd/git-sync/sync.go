@@ -196,9 +196,6 @@ type fileStatus struct {
 
 // Use file system notifications to find changed files rather than git.
 func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (changedFiles []string, err error) {
-	// FIXME(msolo) Figure out what do with Linux, if anything.
-	// config.use_fsnotify and sys.platform == 'darwin':
-
 	// To catch fast edits, we have to rewind one full second - the internal
 	// granularity of watchman.  The API to git-fsmonitor-watchman falsely suggests
 	// nanosecond granularity.
@@ -227,7 +224,7 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	// Too many changes, just do a full sync by pretending we couldn't get
 	// results.
 	if len(filePaths) > 100 {
-		log.Warningf("git fs monitor returned too many changes: %d", len(filePaths))
+		log.Warningf("git fsmonitor returned too many changes: %d", len(filePaths))
 		return nil, nil
 	}
 
@@ -263,8 +260,10 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	return stringSet2Slice(filteredFileSet), nil
 }
 
-// fixme look for more uses
 func stringSet2Slice(ss map[string]bool) []string {
+	if len(ss) == 0 {
+		return nil
+	}
 	sl := make([]string, 0, len(ss))
 	for x := range ss {
 		sl = append(sl, x)
@@ -381,10 +380,10 @@ func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
 			bashCmdArgs = append(bashCmdArgs, "export "+env)
 		}
 	}
-	// FIXME(msolo) Remove? Too bazel specific and magical.
-	excludePaths := []string{"--exclude=/bazel-*"}
-	for _, ex := range cfg.gitSyncExcludePaths {
-		excludePaths = append(excludePaths, ex)
+
+	excludePaths := make([]string, 0, len(cfg.excludePaths))
+	for _, xp := range cfg.excludePaths {
+		excludePaths = append(excludePaths, "--exclude="+xp)
 	}
 
 	cmdFmt := remoteGitCmdFmt{
@@ -447,13 +446,10 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 		return nil, err
 	}
 	mu.Lock()
-	changedFiles = make([]string, 0, len(fileSet))
-	for fname := range fileSet {
-		changedFiles = append(changedFiles, fname)
-	}
+	changedFiles = stringSet2Slice(fileSet)
 	mu.Unlock()
 
-	// todo sort?
+	sort.Strings(changedFiles)
 	return changedFiles, nil
 }
 
@@ -517,10 +513,8 @@ func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string)
 		}
 		sanitizedFileSet[fpath] = true
 	}
-	sanitizedFilePaths := make([]string, 0, len(sanitizedFileSet))
-	for k := range sanitizedFileSet {
-		sanitizedFilePaths = append(sanitizedFilePaths, k)
-	}
+	sanitizedFilePaths := stringSet2Slice(sanitizedFileSet)
+	sort.Strings(sanitizedFilePaths)
 
 	tmpFile, err := ioutil.TempFile(tmpdir(), "git-sync-file-manifest-")
 	if err != nil {
@@ -530,7 +524,6 @@ func rsyncCmd(cfg *config, workdir string, remoteURL string, filePaths []string)
 		_ = os.Remove(tmpFile.Name())
 	})
 
-	sort.Strings(sanitizedFilePaths)
 	_, err = tmpFile.WriteString(joinNullTerminated(sanitizedFilePaths))
 	if err != nil {
 		return nil, err
@@ -599,14 +592,10 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 			return err
 		})
 	}
-	// FIXME(msolo) bgGroup might need to be canceled on return
-
-	var syncCmd *Cmd
 
 	if !foundResults {
-		// fixme: should this return new synccookie with git state?
-		// this is hiding the implementation of sync for peformance
-		syncCmd, err = gitSyncCmd(cfg, sc)
+		// This is hiding the implementation of sync for peformance.
+		syncCmd, err := gitSyncCmd(cfg, sc)
 		if err != nil {
 			return nil, err
 		}

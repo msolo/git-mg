@@ -59,6 +59,9 @@ func watchmanCmd(req interface{}, reply watchmanReply) error {
 
 // git-fsmonitor <protocol> <timestamp_nanoseconds>
 func main() {
+	log.SetFlags(0)
+	log.SetPrefix("git-fsmonitor: ")
+
 	if len(os.Args) < 3 {
 		log.Fatal("Not enough arguments: git-fsmonitor <protocol> <timestamp_nanoseconds>")
 	}

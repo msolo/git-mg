@@ -395,7 +395,6 @@ func rsyncCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
 		return nil, err
 	}
 
-	// fixme(msolo) ssh interface feels klunky
 	sshArgs := []string{"ssh"}
 	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
 	for i, arg := range sshArgs {
@@ -489,7 +488,6 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 	}
 
 	if len(changedFiles) > 0 {
-		// fixme cfg args look klunky
 		cmd, err := rsyncCmd(cfg, workdir, changedFiles)
 		if err == nil {
 			err = cmd.Run()
@@ -508,7 +506,7 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 	if err := bgGroup.Wait(); err != nil {
 		// If we scheduled a background fetch, just wait to prevent zombies.
 		// We don't care if there was an error.
-		log.Warnf("background process failed: %s", err)
+		log.Warnf("background remote fetch failed: %s", err)
 	}
 
 	if len(changedFiles) > 0 {

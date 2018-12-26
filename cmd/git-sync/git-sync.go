@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"time"
 
+	"github.com/apex/log"
 	"github.com/tebeka/atexit"
 
 	"github.com/msolo/cmdflag"
@@ -54,12 +57,12 @@ var cmdMain = &cmdflag.Command{
 git-sync uses SSH, rsync and git (and optionally watchman via
 fsmonitor) to efficiently copy local working directory changes to a
 mirrored copy on a different machine. The goal is generally to be able
-to reliably sync (even on an LTE connection) within 500ms even if the 
+to reliably sync (even on an LTE connection) within 500ms even if the
 repo contains > 250k files.
 
-git-sync is potentially destructive to the target working directory - it will
-clean, reset and checkout changes to ensure the source and destination
-working directories are equivalent.
+git-sync is potentially destructive to the target working directory -
+it will clean, reset and checkout changes to ensure the source and
+destination working directories are equivalent.
 
 Config:
 git-sync reads a few variables from the [sync] section of the git config:
@@ -87,14 +90,23 @@ var subcommands = []*cmdflag.Command{
 	cmdPush,
 }
 
-type ExitCode int
-
-func (ec ExitCode) Error() string {
-	return fmt.Sprintf("ExitCode %v", ec)
+// Emulate glog format I0514 06:27:35.818055 06412 taskrpc.go:25]
+func glogLine(ent *log.Entry) error {
+	levelStr := "DIWEF"
+	tsFmt := "0102 15:04:05.000000"
+	tsStr := ent.Timestamp.Format(tsFmt)
+	msg := strings.TrimSpace(ent.Message)
+	fmt.Fprintf(os.Stderr, "%c%s ] %s\n", levelStr[ent.Level], tsStr, msg)
+	return nil
 }
 
 func main() {
 	defer atexit.Exit(0)
+
+	if val := os.Getenv("GIT_TRACE"); val != "" && val != "0" {
+		log.SetLevel(log.DebugLevel)
+	}
+	log.SetHandler(log.HandlerFunc(glogLine))
 
 	var timeout time.Duration
 

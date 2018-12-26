@@ -2,6 +2,8 @@ module git-sync
 
 require (
 	github.com/amoghe/distillog v0.0.0-20180726233512-ae382b35b717
+	github.com/apex/log v1.1.0
+	github.com/go-logfmt/logfmt v0.4.0 // indirect
 	github.com/google/pprof v0.0.0-20181206194817-3ea8567a2e57 // indirect
 	github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6 // indirect
 	github.com/mattn/go-isatty v0.0.4

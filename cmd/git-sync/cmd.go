@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
-	log "github.com/amoghe/distillog"
+	"github.com/apex/log"
 
 	"github.com/pkg/errors"
 )
@@ -21,9 +21,7 @@ type Cmd struct {
 var trace bool
 
 func init() {
-	if val := os.Getenv("GIT_TRACE"); val != "" && val != "0" {
-		trace = true
-	}
+	trace = true
 }
 
 func (cmd *Cmd) bashString() string {
@@ -61,9 +59,11 @@ func wrapErr(err error, cmd *exec.Cmd) error {
 	err = errors.Cause(err)
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		prefix := "  " + cmd.Args[0] + ": "
-		exitErr.Stderr = append([]byte(prefix),
-			bytes.Replace(exitErr.Stderr[:len(exitErr.Stderr)-1], []byte("\n"), []byte("\n"+prefix), -1)...)
-		exitErr.Stderr = append(exitErr.Stderr, '\n')
+		if len(exitErr.Stderr) > 0 {
+			exitErr.Stderr = append([]byte(prefix),
+				bytes.Replace(exitErr.Stderr[:len(exitErr.Stderr)-1], []byte("\n"), []byte("\n"+prefix), -1)...)
+			exitErr.Stderr = append(exitErr.Stderr, '\n')
+		}
 		return &ExitError{exitErr, cmd}
 	}
 	return err
@@ -74,7 +74,7 @@ func wrapErr(err error, cmd *exec.Cmd) error {
 // just want to use Output() and toss the data.
 func (cmd *Cmd) Run() error {
 	if cmd.trace {
-		log.Debugf("run %v\n", cmd.bashString())
+		log.Debugf("exec %v", cmd.bashString())
 	}
 	return wrapErr(cmd.Cmd.Run(), cmd.Cmd)
 }
@@ -85,7 +85,7 @@ func (cmd *Cmd) Wait() error {
 
 func (cmd *Cmd) Output() ([]byte, error) {
 	if cmd.trace {
-		log.Debugf("output %v\n", cmd.bashString())
+		log.Debugf("exec %v", cmd.bashString())
 	}
 	data, err := cmd.Cmd.Output()
 	err = wrapErr(err, cmd.Cmd)
@@ -94,9 +94,17 @@ func (cmd *Cmd) Output() ([]byte, error) {
 
 func (cmd *Cmd) CombinedOutput() ([]byte, error) {
 	if cmd.trace {
-		log.Debugf("combinedoutput %v\n", cmd.bashString())
+		log.Debugf("exec %v", cmd.bashString())
 	}
 	data, err := cmd.Cmd.CombinedOutput()
 	err = wrapErr(err, cmd.Cmd)
 	return data, err
+}
+
+func exitStatus(err error) (int, error) {
+	err = errors.Cause(err)
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return exitErr.Sys().(syscall.WaitStatus).ExitStatus(), nil
+	}
+	return 0, errors.New("invalid error type")
 }

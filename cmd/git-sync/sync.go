@@ -544,33 +544,33 @@ if [[ $head_hash == "" ]]; then
 fi
 
 if [[ $head_hash != {{.CommitHash}} ]]; then
+  if ! {{.GitRemotePath}} -C {{.RemoteDir}} cat-file -e {{.CommitHash}}; then
+    {{.GitRemotePath}} -C {{.RemoteDir}} fetch -q origin master || exit 1
+    # If the hash still does not exist, we try to error out with a nice error message
     if ! {{.GitRemotePath}} -C {{.RemoteDir}} cat-file -e {{.CommitHash}}; then
-        {{.GitRemotePath}} -C {{.RemoteDir}} fetch -q origin master || exit 1
-        # If the hash still does not exist, we try to error out with a nice error message
-        if ! {{.GitRemotePath}} -C {{.RemoteDir}} cat-file -e {{.CommitHash}}; then
-            echo "ERROR: {{.CommitHash}} does not exist on {{.RemoteDir}}. Did you link your local repo to the correct remote repo?" >&2
-            exit 1
-        fi
+      echo "ERROR: {{.CommitHash}} does not exist on {{.RemoteDir}}. Did you link your local repo to the correct remote repo?" >&2
+      exit 1
     fi
-    # If the remote hash does not match we need to serialize the clean operation until
-    # after checkout returns.
-    SERIALIZED_CHECKOUT_REQUIRED=1
+  fi
+  # If the remote hash does not match we need to serialize the clean operation until
+  # after checkout returns.
+  SERIALIZED_CHECKOUT_REQUIRED=1
 fi
 
 pids=""
 if [[ $SERIALIZED_CHECKOUT_REQUIRED == 1 ]]; then
-    {{.GitRemotePath}} -C {{.RemoteDir}} checkout -qf {{.CommitHash}} || exit
+  {{.GitRemotePath}} -C {{.RemoteDir}} checkout -qf {{.CommitHash}} || exit
 elif [[ $CHECKOUT_REQUIRED == 1 ]]; then
-    {{.GitRemotePath}} -C {{.RemoteDir}} checkout -qf {{.CommitHash}} &
-    pids+=" $!"
+  {{.GitRemotePath}} -C {{.RemoteDir}} checkout -qf {{.CommitHash}} &
+  pids+=" $!"
 fi
 
 if [[ $CLEAN_REQUIRED == 1 ]]; then
-    # git clean can get up to 3x slower (500ms -> 1500ms) if the index is not "tidy" - which is
-    # difficult to quantify. Usually an update-index improves performance.
-    {{.GitRemotePath}} -C {{.RemoteDir}} clean -qfdx {{.ExcludePaths}} &
+  # git clean can get significantly if the index is not "tidy" - which is
+  # difficult to quantify. Usually an update-index improves performance.
+  {{.GitRemotePath}} -C {{.RemoteDir}} clean -qfdx {{.ExcludePaths}} &
+  pids+=" $!"
 fi
-pids+=" $!"
 rc=0
 for pid in $pids; do
   if ! wait $pid; then

@@ -67,10 +67,10 @@ destination working directories are equivalent.
 Config:
 git-sync reads a few variables from the [sync] section of the git config:
 
-sync.remote_name (default "sync")
+sync.remoteName (default "sync")
   This determines the remote target to use for syncing changes.
 
-sync.exclude_paths (default empty)
+sync.excludePaths (default empty)
   A colon-delimited list of patterns that will be passed to git clean
   on the remote target.  This allows some remote data to persist, even
   if it does not exist on the source workdir.

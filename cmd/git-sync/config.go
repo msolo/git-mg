@@ -41,7 +41,7 @@ var defaultConfig = config{
 }
 
 func readConfigFromGit() (*config, error) {
-	wd := gitWorkDir{"."}
+	wd := gitWorkDir{}
 	gitCmd := wd.gitCommand("config", "-z", "-l")
 	output, err := gitCmd.Output()
 	if err != nil {
@@ -58,18 +58,22 @@ func readConfigFromGit() (*config, error) {
 	}
 
 	cfg := defaultConfig
-	if remoteName := configMap["sync.remote_name"]; remoteName != "" {
+	if remoteName := configMap["sync.remoteName"]; remoteName != "" {
 		cfg.remoteName = remoteName
 	}
 
-	if excludePaths := configMap["sync.exclude_paths"]; excludePaths != "" {
+	if excludePaths := configMap["sync.excludePaths"]; excludePaths != "" {
 		cfg.excludePaths = strings.Split(strings.TrimSpace(excludePaths), ":")
+	}
+
+	if rpath := configMap["sync.rsyncRemotePath"]; rpath != "" {
+		cfg.rsyncRemotePath = rpath
 	}
 
 	remoteURLKey := "remote." + cfg.remoteName + ".url"
 	cfg.remoteURL = strings.TrimSpace(configMap[remoteURLKey])
 	if cfg.remoteURL == "" {
-		return nil, errors.Errorf("no url specified for remote name %q", cfg.remoteName)
+		return nil, errors.Errorf("no url specified for remote name %q %#v", cfg.remoteName, configMap)
 	}
 
 	cfg.fsmonitorLocalPath = configMap["core.fsmonitor"]

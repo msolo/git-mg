@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path"
 	"strings"
 	"syscall"
 
@@ -58,7 +59,7 @@ func CommandContext(ctx context.Context, name string, arg ...string) *Cmd {
 func wrapErr(err error, cmd *exec.Cmd) error {
 	err = errors.Cause(err)
 	if exitErr, ok := err.(*exec.ExitError); ok {
-		prefix := "  " + cmd.Args[0] + ": "
+		prefix := "  " + path.Base(cmd.Args[0]) + ": "
 		if len(exitErr.Stderr) > 0 {
 			exitErr.Stderr = append([]byte(prefix),
 				bytes.Replace(exitErr.Stderr[:len(exitErr.Stderr)-1], []byte("\n"), []byte("\n"+prefix), -1)...)

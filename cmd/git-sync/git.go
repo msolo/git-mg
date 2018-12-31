@@ -36,7 +36,10 @@ func getRestrictedEnv() []string {
 }
 
 func (wd *gitWorkDir) gitCommand(args ...string) *Cmd {
-	gitArgs := []string{"-C", wd.dir}
+	gitArgs := []string{}
+	if wd.dir != "" {
+		gitArgs = append(gitArgs, "-C", wd.dir)
+	}
 	gitArgs = append(gitArgs, args...)
 	cmd := Command("git", gitArgs...)
 	cmd.Env = getRestrictedEnv()

@@ -67,7 +67,7 @@ If core.fsmonitor is configured it will be used to find changes quickly.
 	Flags: []cmdflag.Flag{
 		{"timeout", cmdflag.FlagTypeDuration, 0 * time.Millisecond, "timeout for command execution", nil},
 	},
-	Args: cmdflag.PredictNothing, // Technically, the could be a remote name.
+	Args: cmdflag.PredictNothing, // TODO(msolo) Add support for picking a specific remote.
 }
 
 var subcommands = []*cmdflag.Command{

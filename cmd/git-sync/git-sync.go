@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strings"
 
 	"time"
 
-	"github.com/apex/log"
+	log "github.com/msolo/go-bis/glug"
 	"github.com/tebeka/atexit"
 
 	"github.com/msolo/cmdflag"
@@ -19,20 +17,6 @@ var cmdPush = &cmdflag.Command{
 	Run:       runPush,
 	UsageLine: "push <remote name>",
 	UsageLong: `Push a working directory to a remote working dir.`,
-}
-
-type traceSpan struct {
-	name    string
-	start   time.Time
-	elapsed time.Duration
-}
-
-func (ts *traceSpan) Finish() {
-	ts.elapsed = time.Now().Sub(ts.start)
-}
-
-func newTrace(name string) *traceSpan {
-	return &traceSpan{name: name, start: time.Now()}
 }
 
 func exitOnError(err error) {
@@ -90,27 +74,19 @@ var subcommands = []*cmdflag.Command{
 	cmdPush,
 }
 
-// Emulate glog format I0514 06:27:35.818055 06412 taskrpc.go:25]
-func glogLine(ent *log.Entry) error {
-	levelStr := "DIWEF"
-	tsFmt := "0102 15:04:05.000000"
-	tsStr := ent.Timestamp.Format(tsFmt)
-	msg := strings.TrimSpace(ent.Message)
-	fmt.Fprintf(os.Stderr, "%c%s ] %s\n", levelStr[ent.Level], tsStr, msg)
-	return nil
-}
-
 func main() {
 	defer atexit.Exit(0)
 
-	if val := os.Getenv("GIT_TRACE"); val != "" && val != "0" {
-		log.SetLevel(log.DebugLevel)
+	if val := os.Getenv("GIT_TRACE_PERFORMANCE"); val != "" && val != "0" {
+		log.SetLevel("INFO")
+	} else {
+		log.SetLevel("WARNING")
 	}
-	log.SetHandler(log.HandlerFunc(glogLine))
 
 	var timeout time.Duration
-
-	cmdMain.BindFlagSet(map[string]interface{}{"timeout": &timeout})
+	fs := cmdMain.BindFlagSet(map[string]interface{}{"timeout": &timeout})
+	log.RegisterFlags(fs)
+	RegisterFlags(fs)
 
 	cmd, args := cmdflag.Parse(cmdMain, subcommands)
 

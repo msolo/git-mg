@@ -9,8 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/apex/log"
-
+	log "github.com/msolo/go-bis/glug"
 	"github.com/pkg/errors"
 )
 
@@ -75,7 +74,7 @@ func wrapErr(err error, cmd *exec.Cmd) error {
 // just want to use Output() and toss the data.
 func (cmd *Cmd) Run() error {
 	if cmd.trace {
-		log.Debugf("exec %v", cmd.bashString())
+		defer log.Tracef("perf: {{.durationStr}} exec: %s", cmd.bashString()).Finish()
 	}
 	return wrapErr(cmd.Cmd.Run(), cmd.Cmd)
 }
@@ -86,7 +85,7 @@ func (cmd *Cmd) Wait() error {
 
 func (cmd *Cmd) Output() ([]byte, error) {
 	if cmd.trace {
-		log.Debugf("exec %v", cmd.bashString())
+		defer log.Tracef("perf: {{.durationStr}} exec: %s", cmd.bashString()).Finish()
 	}
 	data, err := cmd.Cmd.Output()
 	err = wrapErr(err, cmd.Cmd)
@@ -95,7 +94,7 @@ func (cmd *Cmd) Output() ([]byte, error) {
 
 func (cmd *Cmd) CombinedOutput() ([]byte, error) {
 	if cmd.trace {
-		log.Debugf("exec %v", cmd.bashString())
+		defer log.Tracef("perf {{.durationStr}} exec: %s", cmd.bashString()).Finish()
 	}
 	data, err := cmd.Cmd.CombinedOutput()
 	err = wrapErr(err, cmd.Cmd)

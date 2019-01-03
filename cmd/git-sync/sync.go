@@ -18,9 +18,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/apex/log"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/msolo/go-bis/flock"
+	log "github.com/msolo/go-bis/glug"
 	"github.com/tebeka/atexit"
 )
 
@@ -150,6 +150,14 @@ func writeSyncCookie(workdir string, sc *syncCookie) error {
 	return ioutil.WriteFile(fname, data, 0644)
 }
 
+func isDir(fname string) bool {
+	fi, err := os.Stat(fname)
+	if err != nil {
+		return false
+	}
+	return fi.IsDir()
+}
+
 // Use file system notifications to find changed files rather than git.
 func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (changedFiles []string, err error) {
 	// To catch fast edits, we have to rewind one full second - the internal
@@ -171,7 +179,7 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	fsMonCmd.Dir = workdir
 	out, err := fsMonCmd.Output()
 	if err != nil {
-		log.Warnf("git fsmonitor failed: %s", err)
+		log.Warningf("git fsmonitor failed: %s", err)
 		return nil, err
 	}
 
@@ -179,7 +187,7 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	// Too many changes, just do a full sync by pretending we couldn't get
 	// results.
 	if len(filePaths) > 100 {
-		log.Warnf("git fsmonitor returned too many changes: %d", len(filePaths))
+		log.Warningf("git fsmonitor returned too many changes: %d", len(filePaths))
 		return nil, nil
 	}
 
@@ -189,17 +197,10 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 		return nil, nil
 	}
 
-	isDir := func(fname string) bool {
-		fi, err := os.Stat(fname)
-		if err != nil {
-			return false
-		}
-		return fi.IsDir()
-	}
 	// This filter is expensive because of the directory checking.
 	filteredFileSet := make(map[string]bool, len(filePaths))
 	for _, fname := range filePaths {
-		if fname != "" && fname != ".git" && !strings.HasPrefix(fname, ".git/") && !isDir(fname) {
+		if fname != "" && fname != ".git" && !strings.HasPrefix(fname, ".git/") && !isDir(path.Join(workdir, fname)) {
 			filteredFileSet[fname] = true
 		}
 	}
@@ -440,7 +441,7 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 		// because the remote mirror working directory will need its state reset.
 		changedFiles, err = getChangesViaFsMonitor(cfg, workdir, sc)
 		if err != nil {
-			log.Warnf("git fsmonitor failed to return results: %s", err)
+			log.Warningf("git fsmonitor failed to return results: %s", err)
 		} else {
 			foundResults = true
 		}
@@ -500,17 +501,18 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 	updateSyncCookie := (len(changedFiles) > 0 || sc.gitStateChanged())
 	if updateSyncCookie {
 		if err := writeSyncCookie(workdir, sc); err != nil {
-			log.Warnf("failed to write sync cookie: %s", err)
+			log.Warningf("failed to write sync cookie: %s", err)
 		}
 	}
 	if err := bgGroup.Wait(); err != nil {
 		// If we scheduled a background fetch, just wait to prevent zombies.
 		// We don't care if there was an error.
-		log.Warnf("background remote fetch failed: %s", err)
+		log.Warningf("background remote fetch failed: %s", err)
 	}
 
 	if len(changedFiles) > 0 {
-		log.Infof("git-sync %d files", len(changedFiles))
+		NoisyPrintf("git-sync %d files\n", len(changedFiles))
+		log.Infof("file manifest %s", strings.Join(changedFiles, ", "))
 	}
 
 	// Return all changed files. This can be used to detect files

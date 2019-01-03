@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/apex/log"
+	log "github.com/msolo/go-bis/glug"
 )
 
 type gitWorkDir struct {
@@ -42,6 +42,7 @@ func (wd *gitWorkDir) gitCommand(args ...string) *Cmd {
 	}
 	gitArgs = append(gitArgs, args...)
 	cmd := Command("git", gitArgs...)
+	cmd.Stderr = os.Stderr
 	cmd.Env = getRestrictedEnv()
 	return cmd
 }
@@ -101,7 +102,7 @@ func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedDirs []
 		} else {
 			// Ignore merge conflicts. They have to be resolved by hand
 			// anyway, which will require another sync.
-			log.Warnf("ignoring unmerged file: %s", fname)
+			log.Warningf("ignoring unmerged file: %s", fname)
 		}
 		if status[0] == 'R' {
 			i++

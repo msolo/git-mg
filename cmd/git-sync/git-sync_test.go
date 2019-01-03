@@ -7,7 +7,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/apex/log"
+	log "github.com/msolo/go-bis/glug"
 )
 
 type repo struct {

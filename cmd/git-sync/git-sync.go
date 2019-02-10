@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
+	"strings"
 
 	"time"
 
@@ -12,11 +14,38 @@ import (
 	"github.com/msolo/cmdflag"
 )
 
+type predictGitRemoteName struct{}
+
+// Predict a single valid name for a git remote.
+func (*predictGitRemoteName) Predict(cargs cmdflag.Args) []string {
+	if cargs.LastCompleted != "push" && cargs.LastCompleted != "pull" {
+		return nil
+	}
+	cmd := exec.Command("git", "remote")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return strings.Fields(string(stdout))
+}
+
 var cmdPush = &cmdflag.Command{
 	Name:      "push",
 	Run:       runPush,
-	UsageLine: "push <remote name>",
-	UsageLong: `Push a working directory to a remote working dir.`,
+	Args:      &predictGitRemoteName{},
+	UsageLine: `Push a working directory to a remote working dir.`,
+	UsageLong: `Push a working directory to a remote working dir.
+
+  git-sync push [<remote name>]`,
+}
+
+var cmdPull = &cmdflag.Command{
+	Name:      "pull",
+	Run:       runPull,
+	Args:      &predictGitRemoteName{},
+	UsageLine: `Pull unstaged changes from a remote working directory.`,
+	UsageLong: `Pull unstaged changes from a remote working directory.
+  git-sync pull [<remote name>]`,
 }
 
 func exitOnError(err error) {
@@ -26,11 +55,28 @@ func exitOnError(err error) {
 }
 
 func runPush(ctx context.Context, cmd *cmdflag.Command, args []string) {
-	cfg, err := readConfigFromGit()
+	remoteName := ""
+	if len(args) == 1 {
+		remoteName = args[0]
+	}
+	cfg, err := readConfigFromGit(remoteName)
 	exitOnError(err)
 
 	gitWorkdir := getGitWorkdir()
 	_, err = fullSync(cfg, gitWorkdir)
+	exitOnError(err)
+}
+
+func runPull(ctx context.Context, cmd *cmdflag.Command, args []string) {
+	remoteName := ""
+	if len(args) == 1 {
+		remoteName = args[0]
+	}
+	cfg, err := readConfigFromGit(remoteName)
+	exitOnError(err)
+
+	gitWorkdir := getGitWorkdir()
+	_, err = syncPull(cfg, gitWorkdir)
 	exitOnError(err)
 }
 
@@ -59,6 +105,9 @@ sync.excludePaths (default empty)
   on the remote target.  This allows some remote data to persist, even
   if it does not exist on the source workdir.
 
+sync.rsyncRemotePath (default "/usr/local/bin/rsync")
+  The path for the remote rsync binary.
+
 git-sync uses the remote name to determine the SSH URL that is used as
 the target for rsync operations.
 
@@ -72,6 +121,7 @@ If core.fsmonitor is configured it will be used to find changes quickly.
 
 var subcommands = []*cmdflag.Command{
 	cmdPush,
+	cmdPull,
 }
 
 func main() {

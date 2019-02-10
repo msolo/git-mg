@@ -85,33 +85,38 @@ func getHeadCommitHash(workdir string) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedDirs []string, renamedFiles []string, err error) {
+func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedFiles []string, renamedFiles []string, unstagedFiles []string, err error) {
 	entries := splitNullTerminated(string(data))
 	modifiedFiles = make([]string, 0, 16)
-	untrackedDirs = make([]string, 0, 16)
+	unstagedFiles = make([]string, 0, 16)
+	untrackedFiles = make([]string, 0, 16)
 	renamedFiles = make([]string, 0, 16)
 	for i := 0; i < len(entries); i++ {
 		entry := entries[i]
 		status, fname := entry[:2], entry[3:]
-		if strings.HasSuffix(fname, "/") {
-			untrackedDirs = append(untrackedDirs, fname)
-			continue
-		}
-		if status != "UU" {
-			modifiedFiles = append(modifiedFiles, fname)
-		} else {
+		if status == "UU" {
 			// Ignore merge conflicts. They have to be resolved by hand
 			// anyway, which will require another sync.
 			log.Warningf("ignoring unmerged file: %s", fname)
+			continue
 		}
+
+		modifiedFiles = append(modifiedFiles, fname)
 		if status[0] == 'R' {
+			// Rename is encoded strangely in null-terminated mode:
+			// R  twinsies -> twinsies-2
+			// R  twinsies-2\0twinsies\0
 			i++
 			renamedFile := entries[i]
 			modifiedFiles = append(modifiedFiles, renamedFile)
 			renamedFiles = append(renamedFiles, renamedFile)
+		} else if status == "??" {
+			untrackedFiles = append(untrackedFiles, fname)
+		} else if status[1] != ' ' {
+			unstagedFiles = append(unstagedFiles, fname)
 		}
 	}
-	return modifiedFiles, untrackedDirs, renamedFiles, nil
+	return modifiedFiles, untrackedFiles, renamedFiles, unstagedFiles, nil
 }
 
 func getGitStatus(workdir string) (changedFiles []string, err error) {
@@ -121,7 +126,7 @@ func getGitStatus(workdir string) (changedFiles []string, err error) {
 	if err != nil {
 		return nil, err
 	}
-	changedFiles, _, _, err = parsePorcelainStatus(stdout)
+	changedFiles, _, _, _, err = parsePorcelainStatus(stdout)
 	return changedFiles, err
 }
 
@@ -168,6 +173,16 @@ func gitRenamedFiles(workdir string, filePaths []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, _, renamedFiles, err := parsePorcelainStatus(stdout)
+	_, _, renamedFiles, _, err := parsePorcelainStatus(stdout)
 	return renamedFiles, err
+}
+
+func getGitRemoteNames(workdir string) (remoteNames []string, err error) {
+	gwd := &gitWorkDir{workdir}
+	cmd := gwd.gitCommand("remote")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(stdout)), nil
 }

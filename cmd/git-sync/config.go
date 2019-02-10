@@ -17,6 +17,7 @@ type config struct {
 	excludePaths       []string
 	remoteName         string
 	remoteURL          string
+	gitConfig          map[string]string
 }
 
 func (cfg config) remoteSSHAddr() string {
@@ -40,7 +41,7 @@ var defaultConfig = config{
 	remoteName:      "sync",
 }
 
-func readConfigFromGit() (*config, error) {
+func readConfigFromGit(remoteName string) (*config, error) {
 	wd := gitWorkDir{}
 	gitCmd := wd.gitCommand("config", "-z", "-l")
 	output, err := gitCmd.Output()
@@ -48,35 +49,40 @@ func readConfigFromGit() (*config, error) {
 		return nil, errors.WithMessage(err, "git config failed")
 	}
 	entries := splitNullTerminated(string(output))
-	configMap := make(map[string]string)
+	gitConfig := make(map[string]string)
 	for _, ent := range entries {
 		keyValTuple := strings.SplitN(ent, "\n", 2)
 		if len(keyValTuple) != 2 {
 			fmt.Println("invalid:", len(keyValTuple), keyValTuple)
 		}
-		configMap[keyValTuple[0]] = keyValTuple[1]
+		gitConfig[keyValTuple[0]] = keyValTuple[1]
 	}
 
 	cfg := defaultConfig
-	if remoteName := configMap["sync.remoteName"]; remoteName != "" {
+	cfg.gitConfig = gitConfig
+
+	if remoteName == "" {
+		remoteName = gitConfig["sync.remoteName"]
+	}
+	if remoteName != "" {
 		cfg.remoteName = remoteName
 	}
 
-	if excludePaths := configMap["sync.excludePaths"]; excludePaths != "" {
+	if excludePaths := gitConfig["sync.excludePaths"]; excludePaths != "" {
 		cfg.excludePaths = strings.Split(strings.TrimSpace(excludePaths), ":")
 	}
 
-	if rpath := configMap["sync.rsyncRemotePath"]; rpath != "" {
+	if rpath := gitConfig["sync.rsyncRemotePath"]; rpath != "" {
 		cfg.rsyncRemotePath = rpath
 	}
 
 	remoteURLKey := "remote." + cfg.remoteName + ".url"
-	cfg.remoteURL = strings.TrimSpace(configMap[remoteURLKey])
+	cfg.remoteURL = strings.TrimSpace(gitConfig[remoteURLKey])
 	if cfg.remoteURL == "" {
-		return nil, errors.Errorf("no url specified for remote name %q %#v", cfg.remoteName, configMap)
+		return nil, errors.Errorf("no url specified for remote name %q %#v", cfg.remoteName, gitConfig)
 	}
 
-	cfg.fsmonitorLocalPath = configMap["core.fsmonitor"]
+	cfg.fsmonitorLocalPath = gitConfig["core.fsmonitor"]
 
 	return &cfg, nil
 }

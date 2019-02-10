@@ -74,7 +74,7 @@ func wrapErr(err error, cmd *exec.Cmd) error {
 // just want to use Output() and toss the data.
 func (cmd *Cmd) Run() error {
 	if cmd.trace {
-		defer log.Tracef("perf: {{.durationStr}} exec: %s", cmd.bashString()).Finish()
+		defer log.Tracef("perf: {{.traceDurationStr}} exec: {{.cmdStr}}", map[string]interface{}{"cmdStr": cmd.bashString()}).Finish()
 	}
 	return wrapErr(cmd.Cmd.Run(), cmd.Cmd)
 }
@@ -85,7 +85,7 @@ func (cmd *Cmd) Wait() error {
 
 func (cmd *Cmd) Output() ([]byte, error) {
 	if cmd.trace {
-		defer log.Tracef("perf: {{.durationStr}} exec: %s", cmd.bashString()).Finish()
+		defer log.Tracef("perf: {{.traceDurationStr}} exec: {{.cmdStr}}", map[string]interface{}{"cmdStr": cmd.bashString()}).Finish()
 	}
 	data, err := cmd.Cmd.Output()
 	err = wrapErr(err, cmd.Cmd)
@@ -94,7 +94,7 @@ func (cmd *Cmd) Output() ([]byte, error) {
 
 func (cmd *Cmd) CombinedOutput() ([]byte, error) {
 	if cmd.trace {
-		defer log.Tracef("perf {{.durationStr}} exec: %s", cmd.bashString()).Finish()
+		defer log.Tracef("perf: {{.traceDurationStr}} exec: {{.cmdStr}}", map[string]interface{}{"cmdStr": cmd.bashString()}).Finish()
 	}
 	data, err := cmd.Cmd.CombinedOutput()
 	err = wrapErr(err, cmd.Cmd)

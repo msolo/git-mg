@@ -237,7 +237,11 @@ func splitNullTerminated(s string) []string {
 	if s == "" {
 		return nil
 	}
-	return strings.Split(s[:len(s)-1], "\000")
+	// Deal with buggy interpretations of null-terminated
+	if s[len(s)-1] == '\000' {
+		s = s[:len(s)-1]
+	}
+	return strings.Split(s, "\000")
 }
 
 func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
@@ -274,6 +278,16 @@ func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
 		return nil, err
 	}
 	bashCmdArgs = append(bashCmdArgs, buf.String())
+	sshCmd := makeSSHCmd(cfg, cfg.remoteSSHAddr(), bashCmdArgs)
+	return sshCmd, nil
+}
+
+func sshStageRemoteChangesCmd(cfg *config, changedFiles []string) (*Cmd, error) {
+	bashCmdArgs := make([]string, 0, 16)
+	bashCmdArgs = append(bashCmdArgs, cfg.gitRemotePath, "-C", cfg.remoteDir(), "add", "$(")
+	bashCmdArgs = append(bashCmdArgs, cfg.gitRemotePath, "-C", cfg.remoteDir(), "ls-files", "-c", "-o")
+	bashCmdArgs = append(bashCmdArgs, changedFiles...)
+	bashCmdArgs = append(bashCmdArgs, ")")
 	sshCmd := makeSSHCmd(cfg, cfg.remoteSSHAddr(), bashCmdArgs)
 	return sshCmd, nil
 }
@@ -364,7 +378,7 @@ func tmpdir() string {
 	return dir
 }
 
-func rsyncCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
+func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
 	// Replace file paths that are children of deleted directories with the top-most deleted
 	// directory below the workdir.  It's not clear that this is always safe behavior for rsync,
 	// but it should be safe for our use case.  This is related to an rsync bug, but the patch
@@ -414,6 +428,54 @@ func rsyncCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
 		rsyncCmdArgs = append(rsyncCmdArgs, "--rsync-path", cfg.rsyncRemotePath)
 	}
 	rsyncCmdArgs = append(rsyncCmdArgs, workdir, cfg.remoteURL)
+
+	cmd := Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
+	cmd.Env = getRestrictedEnv()
+	return cmd, nil
+}
+
+func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
+	// Replace file paths that are children of deleted directories with the top-most deleted
+	// directory below the workdir.  It's not clear that this is always safe behavior for rsync,
+	// but it should be safe for our use case.  This is related to an rsync bug, but the patch
+	// attached to the report does not look correct.
+	// See https://bugzilla.samba.org/show_bug.cgi?id=12569.
+	sanitizedFileSet := make(map[string]bool)
+	for _, fpath := range filePaths {
+		sanitizedFileSet[fpath] = true
+	}
+	sanitizedFilePaths := stringSet2Slice(sanitizedFileSet)
+	sort.Strings(sanitizedFilePaths)
+
+	tmpFile, err := ioutil.TempFile(tmpdir(), "git-sync-file-manifest-")
+	if err != nil {
+		return nil, err
+	}
+	atexit.Register(func() {
+		_ = os.Remove(tmpFile.Name())
+	})
+
+	_, err = tmpFile.WriteString(joinNullTerminated(sanitizedFilePaths))
+	if err != nil {
+		return nil, err
+	}
+
+	sshArgs := []string{"ssh"}
+	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
+	for i, arg := range sshArgs {
+		sshArgs[i] = bashQuote(arg)
+	}
+	rsyncCmdArgs := []string{
+		"-czlptgo",
+		"-e", strings.Join(sshArgs, " "),
+		"--delete-missing-args",
+		"--from0",
+		"--files-from", tmpFile.Name(),
+	}
+	if cfg.rsyncRemotePath != "" {
+		rsyncCmdArgs = append(rsyncCmdArgs, "--rsync-path", cfg.rsyncRemotePath)
+	}
+	rsyncCmdArgs = append(rsyncCmdArgs, cfg.remoteURL, workdir)
 
 	cmd := Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
 	cmd.Env = getRestrictedEnv()
@@ -489,14 +551,22 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 	}
 
 	if len(changedFiles) > 0 {
-		cmd, err := rsyncCmd(cfg, workdir, changedFiles)
+		cmd, err := rsyncPushCmd(cfg, workdir, changedFiles)
 		if err == nil {
-			err = cmd.Run()
+			_, err = cmd.Output()
+		}
+		if err != nil {
+			return nil, err
+		}
+		cmd, err = sshStageRemoteChangesCmd(cfg, changedFiles)
+		if err == nil {
+			_, err = cmd.Output()
 		}
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	// Only update the sync cookie if we actually sent some changes.
 	updateSyncCookie := (len(changedFiles) > 0 || sc.gitStateChanged())
 	if updateSyncCookie {
@@ -591,4 +661,42 @@ type remoteGitCmdFmt struct {
 	RemoteDir        string
 	CommitHash       string
 	ExcludePaths     string
+}
+
+// Pull unstaged changes from the remote workdir into the local workdir.
+func syncPull(cfg *config, workdir string) (changedFiles []string, err error) {
+	// Use a lock file to guard against git races on the remote side.
+	flock, err := flock.Open(path.Join(workdir, ".git/git-sync.mutex"))
+	if err != nil {
+		return nil, err
+	}
+	defer flock.Close()
+
+	cmd := makeSSHCmd(cfg, cfg.remoteSSHAddr(), []string{
+		cfg.gitRemotePath, "-C", cfg.remoteDir(), "status",
+		"-z", "--porcelain", "--untracked-file=all",
+	})
+
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	_, untrackedFiles, _, unstagedFiles, err := parsePorcelainStatus(stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	changedFiles = make([]string, 0, len(untrackedFiles)+len(unstagedFiles))
+	changedFiles = append(changedFiles, untrackedFiles...)
+	changedFiles = append(changedFiles, unstagedFiles...)
+
+	cmd, err = rsyncPullCmd(cfg, workdir, changedFiles)
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+	return changedFiles, nil
 }

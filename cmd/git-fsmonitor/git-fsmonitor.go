@@ -90,7 +90,9 @@ func main() {
 		gitWorkdir,
 		map[string]interface{}{
 			"fields": []interface{}{"name"},
-			"since":  ts,
+			// Query only files and symlinks since doesn't track directories.
+			"expression": []interface{}{"anyof", []interface{}{"type", "f"}, []interface{}{"type", "l"}},
+			"since":      ts,
 		},
 	}
 

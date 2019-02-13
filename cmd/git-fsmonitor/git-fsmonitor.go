@@ -90,9 +90,13 @@ func main() {
 		gitWorkdir,
 		map[string]interface{}{
 			"fields": []interface{}{"name"},
-			// Query only files and symlinks since doesn't track directories.
-			"expression": []interface{}{"anyof", []interface{}{"type", "f"}, []interface{}{"type", "l"}},
-			"since":      ts,
+			// Query only files and symlinks since git doesn't track directories.
+			// Ignore transient files since the last timestamp.
+			"expression": []interface{}{"allof",
+				[]interface{}{"anyof", []interface{}{"type", "f"}, []interface{}{"type", "l"}},
+				[]interface{}{"not", []interface{}{"allof", []interface{}{"since", ts, "cclock"}, []interface{}{"not", "exists"}}},
+			},
+			"since": ts,
 		},
 	}
 

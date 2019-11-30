@@ -1,0 +1,9 @@
+{
+    "Triggers": [
+        {"Name": "gofmt",
+         "Includes": ["*.go"],
+         "InputType": "args",
+         "Cmd": ["gofmt"]
+        }
+    ]
+}

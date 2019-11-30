@@ -13,3 +13,4 @@
 
 cmd/git-fsmonitor/git-fsmonitor
 cmd/git-sync/git-sync
+cmd/git-preflight/git-preflight

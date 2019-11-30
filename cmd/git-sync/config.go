@@ -1,13 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/msolo/git-mg/gitapi"
 	"github.com/pkg/errors"
 )
 
 type config struct {
+	// sshControlPath is used to explicitly set the control socket for our usage.
 	sshControlPath     string
 	gitLocalPath       string
 	gitRemotePath      string
@@ -33,31 +34,21 @@ func (cfg config) fsmonitorEnabled() bool {
 }
 
 var defaultConfig = config{
+	// ssh -G <host> | awk '/^controlpath/{print $2}'
 	sshControlPath:  "/tmp/ssh_mux_%h_%p_%r",
 	gitRemotePath:   "git",
 	gitLocalPath:    "git",
 	rsyncRemotePath: "rsync",
-	rsyncLocalPath:  "/usr/local/bin/rsync", // Mac specific :(
+	rsyncLocalPath:  "rsync", // Assume a satisfactory rsync is in the path.
 	remoteName:      "sync",
 }
 
 func readConfigFromGit(remoteName string) (*config, error) {
-	wd := gitWorkDir{}
-	gitCmd := wd.gitCommand("config", "-z", "-l")
-	output, err := gitCmd.Output()
+	wd := gitapi.NewGitWorkdir()
+	gitConfig, err := wd.GitConfig()
 	if err != nil {
-		return nil, errors.WithMessage(err, "git config failed")
+		return nil, err
 	}
-	entries := splitNullTerminated(string(output))
-	gitConfig := make(map[string]string)
-	for _, ent := range entries {
-		keyValTuple := strings.SplitN(ent, "\n", 2)
-		if len(keyValTuple) != 2 {
-			fmt.Println("invalid:", len(keyValTuple), keyValTuple)
-		}
-		gitConfig[keyValTuple[0]] = keyValTuple[1]
-	}
-
 	cfg := defaultConfig
 	cfg.gitConfig = gitConfig
 

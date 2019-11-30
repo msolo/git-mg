@@ -1,4 +1,4 @@
-package main
+package gitapi
 
 import (
 	"bytes"
@@ -9,13 +9,55 @@ import (
 	"syscall"
 
 	log "github.com/msolo/go-bis/glug"
+	"github.com/pkg/errors"
 )
+
+func GitWorkdir() string {
+	//	args := []string{"git", "rev-parse", "--show-toplevel"}
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err) // This is fatal.
+	}
+	for wd != "/" {
+		_, err := os.Stat(path.Join(wd, ".git"))
+		if err == nil {
+			return wd
+		} else if os.IsNotExist(err) {
+			wd = path.Dir(wd)
+		} else {
+			panic(err) // This is also fatal.
+		}
+	}
+	return ""
+}
 
 type gitWorkDir struct {
 	dir string
 }
 
-func getRestrictedEnv() []string {
+func NewGitWorkdir() *gitWorkDir {
+	return &gitWorkDir{GitWorkdir()}
+}
+
+func (wd *gitWorkDir) GitConfig() (map[string]string, error) {
+	gitCmd := wd.gitCommand("config", "-z", "-l")
+	output, err := gitCmd.Output()
+	if err != nil {
+		return nil, errors.WithMessage(err, "git config failed")
+	}
+	entries := SplitNullTerminated(string(output))
+	gitConfig := make(map[string]string)
+	for _, ent := range entries {
+		keyValTuple := strings.SplitN(ent, "\n", 2)
+		if len(keyValTuple) != 2 {
+			log.Warningf("invalid git config tuple: %d %v", len(keyValTuple), keyValTuple)
+		}
+		gitConfig[keyValTuple[0]] = keyValTuple[1]
+	}
+	return gitConfig, nil
+}
+
+func GetRestrictedEnv() []string {
 	// Any missing envionment variable is a problem.
 	keys := []string{"PATH", "USER", "LOGNAME", "HOME", "SSH_AUTH_SOCK"}
 	env := make([]string, 0, len(keys))
@@ -43,29 +85,11 @@ func (wd *gitWorkDir) gitCommand(args ...string) *Cmd {
 	gitArgs = append(gitArgs, args...)
 	cmd := Command("git", gitArgs...)
 	cmd.Stderr = os.Stderr
-	cmd.Env = getRestrictedEnv()
+	cmd.Env = GetRestrictedEnv()
 	return cmd
 }
 
-func getGitWorkdir() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err) // This is fatal.
-	}
-	for wd != "/" {
-		_, err := os.Stat(path.Join(wd, ".git"))
-		if err == nil {
-			return wd
-		} else if os.IsNotExist(err) {
-			wd = path.Dir(wd)
-		} else {
-			panic(err) // This is also fatal.
-		}
-	}
-	return ""
-}
-
-func getMergeBaseCommitHash(workdir string) (string, error) {
+func GetMergeBaseCommitHash(workdir string) (string, error) {
 	gwd := gitWorkDir{workdir}
 	gitCmd := gwd.gitCommand("merge-base", "origin/master", "HEAD")
 	out, err := gitCmd.Output()
@@ -75,7 +99,7 @@ func getMergeBaseCommitHash(workdir string) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func getHeadCommitHash(workdir string) (string, error) {
+func GetHeadCommitHash(workdir string) (string, error) {
 	gwd := gitWorkDir{workdir}
 	gitCmd := gwd.gitCommand("rev-parse", "HEAD")
 	out, err := gitCmd.Output()
@@ -85,8 +109,8 @@ func getHeadCommitHash(workdir string) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedFiles []string, renamedFiles []string, unstagedFiles []string, err error) {
-	entries := splitNullTerminated(string(data))
+func ParsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedFiles []string, renamedFiles []string, unstagedFiles []string, err error) {
+	entries := SplitNullTerminated(string(data))
 	modifiedFiles = make([]string, 0, 16)
 	unstagedFiles = make([]string, 0, 16)
 	untrackedFiles = make([]string, 0, 16)
@@ -119,32 +143,66 @@ func parsePorcelainStatus(data []byte) (modifiedFiles []string, untrackedFiles [
 	return modifiedFiles, untrackedFiles, renamedFiles, unstagedFiles, nil
 }
 
-func getGitStatus(workdir string) (changedFiles []string, err error) {
+func GetGitStatus(workdir string) (changedFiles []string, err error) {
 	gwd := &gitWorkDir{workdir}
 	cmd := gwd.gitCommand("status", "-z", "--porcelain", "--untracked-files=all")
 	stdout, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	changedFiles, _, _, _, err = parsePorcelainStatus(stdout)
+	changedFiles, _, _, _, err = ParsePorcelainStatus(stdout)
 	return changedFiles, err
 }
 
+// Return all files that were changed in a given commit.
+func GetGitCommitChanges(workdir string, commitHash string) (changedFiles []string, err error) {
+	gwd := &gitWorkDir{workdir}
+	cmd := gwd.gitCommand("diff-tree", "--no-commit-id", "-z", "-r", "--name-only", commitHash)
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	changedFiles = SplitNullTerminated(string(stdout))
+	return changedFiles, nil
+}
+
 // Return all files that have been changed on HEAD relative to the merge base.
-func getGitDiffChanges(workdir string, mergeBaseHash string) (changedFiles []string, err error) {
+func GetGitDiffChanges(workdir string, mergeBaseHash string) (changedFiles []string, err error) {
 	gwd := &gitWorkDir{workdir}
 	cmd := gwd.gitCommand("diff", "-z", "--no-renames", "--name-only", "HEAD", mergeBaseHash)
 	stdout, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	changedFiles = splitNullTerminated(string(stdout))
+	changedFiles = SplitNullTerminated(string(stdout))
+	return changedFiles, nil
+}
+
+func GetGitStagedChanges(workdir string) (changedFiles []string, err error) {
+	gwd := &gitWorkDir{workdir}
+	cmd := gwd.gitCommand("diff", "-z", "--no-renames", "--name-only", "--staged")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	changedFiles = SplitNullTerminated(string(stdout))
+	return changedFiles, nil
+}
+
+func GetGitUnstagedChanges(workdir string) (changedFiles []string, err error) {
+	gwd := &gitWorkDir{workdir}
+	cmd := gwd.gitCommand("diff", "-z", "--no-renames", "--name-only")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	changedFiles = SplitNullTerminated(string(stdout))
 	return changedFiles, nil
 }
 
 // Return a list of ignored files.
-func gitCheckIgnore(workdir string, filePaths []string) ([]string, error) {
-	data := joinNullTerminated(filePaths)
+func GitCheckIgnore(workdir string, filePaths []string) ([]string, error) {
+	data := JoinNullTerminated(filePaths)
 	// NOTE: --no-index makes this call ~5ms instead of 150ms, but we have
 	// false positives due to what we store in the tree.
 	gwd := gitWorkDir{workdir}
@@ -160,11 +218,11 @@ func gitCheckIgnore(workdir string, filePaths []string) ([]string, error) {
 			}
 		}
 	}
-	return splitNullTerminated(string(out)), nil
+	return SplitNullTerminated(string(out)), nil
 }
 
 // Return a list of files that were renamed.
-func gitRenamedFiles(workdir string, filePaths []string) ([]string, error) {
+func GitRenamedFiles(workdir string, filePaths []string) ([]string, error) {
 	gwd := &gitWorkDir{workdir}
 	args := []string{"status", "-z", "--porcelain", "--untracked-files=normal"}
 	args = append(args, filePaths...)
@@ -173,11 +231,11 @@ func gitRenamedFiles(workdir string, filePaths []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, _, renamedFiles, _, err := parsePorcelainStatus(stdout)
+	_, _, renamedFiles, _, err := ParsePorcelainStatus(stdout)
 	return renamedFiles, err
 }
 
-func getGitRemoteNames(workdir string) (remoteNames []string, err error) {
+func GetGitRemoteNames(workdir string) (remoteNames []string, err error) {
 	gwd := &gitWorkDir{workdir}
 	cmd := gwd.gitCommand("remote")
 	stdout, err := cmd.Output()
@@ -185,4 +243,22 @@ func getGitRemoteNames(workdir string) (remoteNames []string, err error) {
 		return nil, err
 	}
 	return strings.Fields(string(stdout)), nil
+}
+
+func JoinNullTerminated(ss []string) string {
+	if len(ss) == 0 {
+		return ""
+	}
+	return strings.Join(ss, "\000") + "\000"
+}
+
+func SplitNullTerminated(s string) []string {
+	if s == "" {
+		return nil
+	}
+	// Deal with buggy interpretations of null-terminated
+	if s[len(s)-1] == '\000' {
+		s = s[:len(s)-1]
+	}
+	return strings.Split(s, "\000")
 }

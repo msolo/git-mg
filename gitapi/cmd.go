@@ -1,4 +1,4 @@
-package main
+package gitapi
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ func init() {
 func (cmd *Cmd) bashString() string {
 	args := make([]string, len(cmd.Args))
 	for i, x := range cmd.Args {
-		args[i] = bashQuote(x)
+		args[i] = BashQuote(x)
 	}
 	return strings.Join(args, " ")
 }
@@ -101,7 +101,7 @@ func (cmd *Cmd) CombinedOutput() ([]byte, error) {
 	return data, err
 }
 
-func exitStatus(err error) (int, error) {
+func ExitStatus(err error) (int, error) {
 	err = errors.Cause(err)
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		return exitErr.Sys().(syscall.WaitStatus).ExitStatus(), nil

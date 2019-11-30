@@ -19,33 +19,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	isatty "github.com/mattn/go-isatty"
+	"github.com/msolo/git-mg/gitapi"
 	"github.com/msolo/go-bis/flock"
 	log "github.com/msolo/go-bis/glug"
 	"github.com/tebeka/atexit"
 )
-
-const safeUnquoted = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@%_-+=:,./"
-
-func bashQuote(s string) string {
-	// Double escaping ~ neuters expansion and ~ is implicit.
-	if strings.HasPrefix(s, "~/") {
-		return s
-	}
-	if s == "" {
-		return "''"
-	}
-	hasUnsafe := false
-	for _, r := range s {
-		if !strings.ContainsRune(safeUnquoted, r) {
-			hasUnsafe = true
-			break
-		}
-	}
-	if !hasUnsafe {
-		return s
-	}
-	return "'" + strings.Replace(s, "'", "'\"'\"'", -1) + "'"
-}
 
 func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 	sshOptions := map[string]string{
@@ -53,7 +31,9 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 		"ControlMaster":  "auto", // auto|no
 		"ControlPath":    cfg.sshControlPath,
 		"ControlPersist": "15m",
-		"ForwardAgent":   "yes",
+		// Forwarding the agent is almost certainly required since both local and remote
+		// workdirs must talk to the same central server.
+		"ForwardAgent": "yes",
 		// If we use control sockets, we need to set loglevel=quiet so that we don"t
 		// litter lines like "Shared connection to msolo-dbx closed." after every command.
 		"LogLevel":              "quiet",
@@ -84,15 +64,15 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 	}
 
 	if len(bashCmdArgs) > 0 {
-		bashCmd := "/bin/bash --noprofile --norc -c " + bashQuote(strings.Join(bashCmdArgs, " "))
+		bashCmd := "/bin/bash --noprofile --norc -c " + gitapi.BashQuote(strings.Join(bashCmdArgs, " "))
 		sshArgs = append(sshArgs, bashCmd)
 	}
 	return sshArgs
 }
 
-func makeSSHCmd(cfg *config, addr string, bashCmdArgs []string) *Cmd {
-	cmd := Command("ssh", makeSSHArgs(cfg, addr, bashCmdArgs)...)
-	cmd.Env = getRestrictedEnv()
+func makeSSHCmd(cfg *config, addr string, bashCmdArgs []string) *gitapi.Cmd {
+	cmd := gitapi.Command("ssh", makeSSHArgs(cfg, addr, bashCmdArgs)...)
+	cmd.Env = gitapi.GetRestrictedEnv()
 	return cmd
 }
 
@@ -111,11 +91,11 @@ func (sc syncCookie) gitStateChanged() bool {
 
 // Read sync cookie and current working directory state. Cookie may be a stupid name.
 func readSyncCookie(workdir string) (sc *syncCookie, err error) {
-	headHash, err := getHeadCommitHash(workdir)
+	headHash, err := gitapi.GetHeadCommitHash(workdir)
 	if err != nil {
 		return nil, err
 	}
-	mergeBaseHash, err := getMergeBaseCommitHash(workdir)
+	mergeBaseHash, err := gitapi.GetMergeBaseCommitHash(workdir)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +154,8 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 	// should just shut off watchman altogether.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	fsMonCmd := CommandContext(ctx, cfg.fsmonitorLocalPath, "1", strconv.FormatInt(ts, 10))
-	fsMonCmd.Env = getRestrictedEnv()
+	fsMonCmd := gitapi.CommandContext(ctx, cfg.fsmonitorLocalPath, "1", strconv.FormatInt(ts, 10))
+	fsMonCmd.Env = gitapi.GetRestrictedEnv()
 	fsMonCmd.Dir = workdir
 	out, err := fsMonCmd.Output()
 	if err != nil {
@@ -183,7 +163,7 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 		return nil, err
 	}
 
-	filePaths := splitNullTerminated(string(out))
+	filePaths := gitapi.SplitNullTerminated(string(out))
 	// Too many changes, just do a full sync by pretending we couldn't get
 	// results.
 	if len(filePaths) > 100 {
@@ -205,7 +185,7 @@ func getChangesViaFsMonitor(cfg *config, workdir string, sc *syncCookie) (change
 		}
 	}
 	if len(filteredFileSet) > 0 {
-		ignoredFilePaths, err := gitCheckIgnore(workdir, stringSet2Slice(filteredFileSet))
+		ignoredFilePaths, err := gitapi.GitCheckIgnore(workdir, stringSet2Slice(filteredFileSet))
 		if err != nil {
 			return nil, err
 		}
@@ -226,25 +206,8 @@ func stringSet2Slice(ss map[string]bool) []string {
 	}
 	return sl
 }
-func joinNullTerminated(ss []string) string {
-	if len(ss) == 0 {
-		return ""
-	}
-	return strings.Join(ss, "\000") + "\000"
-}
 
-func splitNullTerminated(s string) []string {
-	if s == "" {
-		return nil
-	}
-	// Deal with buggy interpretations of null-terminated
-	if s[len(s)-1] == '\000' {
-		s = s[:len(s)-1]
-	}
-	return strings.Split(s, "\000")
-}
-
-func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
+func gitSyncCmd(cfg *config, sc *syncCookie) (*gitapi.Cmd, error) {
 	bashCmdArgs := make([]string, 0, 16)
 	// Plumb some handy profiling variables through.
 	for _, env := range os.Environ() {
@@ -282,7 +245,7 @@ func gitSyncCmd(cfg *config, sc *syncCookie) (*Cmd, error) {
 	return sshCmd, nil
 }
 
-func sshStageRemoteChangesCmd(cfg *config, changedFiles []string) (*Cmd, error) {
+func sshStageRemoteChangesCmd(cfg *config, changedFiles []string) (*gitapi.Cmd, error) {
 	bashCmdArgs := make([]string, 0, 16)
 	bashCmdArgs = append(bashCmdArgs, cfg.gitRemotePath, "-C", cfg.remoteDir(), "add", "$(")
 	bashCmdArgs = append(bashCmdArgs, cfg.gitRemotePath, "-C", cfg.remoteDir(), "ls-files", "-c", "-o")
@@ -305,7 +268,7 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 	}
 
 	x := func() error {
-		files, err := getGitStatus(workdir)
+		files, err := gitapi.GetGitStatus(workdir)
 		if err != nil {
 			return err
 		}
@@ -314,7 +277,7 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 	}
 
 	y := func() error {
-		files, err := getGitDiffChanges(workdir, sc.mergeBaseHash)
+		files, err := gitapi.GetGitDiffChanges(workdir, sc.mergeBaseHash)
 		if err != nil {
 			return err
 		}
@@ -335,13 +298,13 @@ func getChangesViaStatus(workdir string, sc *syncCookie) (changedFiles []string,
 	return changedFiles, nil
 }
 
-func remoteGitFetchCmd(cfg *config, workdir string) (*Cmd, error) {
+func remoteGitFetchCmd(cfg *config, workdir string) (*gitapi.Cmd, error) {
 	shCmd := "flock --nonblock {{.RemoteDir}}/.git/FETCH_HEAD {{.GitRemotePath}} -C {{.RemoteDir}} fetch -q origin master < /dev/null > /dev/null 2>&1 &"
 	tmpl := template.Must(template.New("remoteGitFetchCmd").Parse(shCmd)).Option("missingkey=error")
 	shCmdFmt := struct {
 		RemoteDir     string
 		GitRemotePath string
-	}{bashQuote(cfg.remoteDir()), cfg.gitRemotePath}
+	}{gitapi.BashQuote(cfg.remoteDir()), cfg.gitRemotePath}
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tmpl.Execute(buf, shCmdFmt); err != nil {
 		return nil, err
@@ -378,7 +341,7 @@ func tmpdir() string {
 	return dir
 }
 
-func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
+func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*gitapi.Cmd, error) {
 	// Replace file paths that are children of deleted directories with the top-most deleted
 	// directory below the workdir.  It's not clear that this is always safe behavior for rsync,
 	// but it should be safe for our use case.  This is related to an rsync bug, but the patch
@@ -405,7 +368,7 @@ func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 		_ = os.Remove(tmpFile.Name())
 	})
 
-	_, err = tmpFile.WriteString(joinNullTerminated(sanitizedFilePaths))
+	_, err = tmpFile.WriteString(gitapi.JoinNullTerminated(sanitizedFilePaths))
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +376,7 @@ func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 	sshArgs := []string{"ssh"}
 	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
 	for i, arg := range sshArgs {
-		sshArgs[i] = bashQuote(arg)
+		sshArgs[i] = gitapi.BashQuote(arg)
 	}
 	rsyncCmdArgs := []string{
 		"-czlptgo",
@@ -429,12 +392,12 @@ func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 	}
 	rsyncCmdArgs = append(rsyncCmdArgs, workdir, cfg.remoteURL)
 
-	cmd := Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
-	cmd.Env = getRestrictedEnv()
+	cmd := gitapi.Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
+	cmd.Env = gitapi.GetRestrictedEnv()
 	return cmd, nil
 }
 
-func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error) {
+func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*gitapi.Cmd, error) {
 	// Replace file paths that are children of deleted directories with the top-most deleted
 	// directory below the workdir.  It's not clear that this is always safe behavior for rsync,
 	// but it should be safe for our use case.  This is related to an rsync bug, but the patch
@@ -455,7 +418,7 @@ func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 		_ = os.Remove(tmpFile.Name())
 	})
 
-	_, err = tmpFile.WriteString(joinNullTerminated(sanitizedFilePaths))
+	_, err = tmpFile.WriteString(gitapi.JoinNullTerminated(sanitizedFilePaths))
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +426,7 @@ func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 	sshArgs := []string{"ssh"}
 	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
 	for i, arg := range sshArgs {
-		sshArgs[i] = bashQuote(arg)
+		sshArgs[i] = gitapi.BashQuote(arg)
 	}
 	rsyncCmdArgs := []string{
 		"-czlptgo",
@@ -477,8 +440,8 @@ func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*Cmd, error)
 	}
 	rsyncCmdArgs = append(rsyncCmdArgs, cfg.remoteURL, workdir)
 
-	cmd := Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
-	cmd.Env = getRestrictedEnv()
+	cmd := gitapi.Command(cfg.rsyncLocalPath, rsyncCmdArgs...)
+	cmd.Env = gitapi.GetRestrictedEnv()
 	return cmd, nil
 }
 
@@ -542,7 +505,7 @@ func fullSync(cfg *config, workdir string) (changedFiles []string, err error) {
 		}
 
 		if err = <-syncErr; err != nil {
-			if rc, rcErr := exitStatus(err); rcErr == nil && rc == 255 {
+			if rc, rcErr := gitapi.ExitStatus(err); rcErr == nil && rc == 255 {
 				// SSH transport errors are common enough to need handling.
 				return nil, errors.Errorf("ssh unable to connect to host %s", cfg.remoteSSHAddr())
 			}
@@ -682,7 +645,7 @@ func syncPull(cfg *config, workdir string) (changedFiles []string, err error) {
 		return nil, err
 	}
 
-	_, untrackedFiles, _, unstagedFiles, err := parsePorcelainStatus(stdout)
+	_, untrackedFiles, _, unstagedFiles, err := gitapi.ParsePorcelainStatus(stdout)
 	if err != nil {
 		return nil, err
 	}

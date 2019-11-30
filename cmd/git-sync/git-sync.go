@@ -8,6 +8,7 @@ import (
 
 	"time"
 
+	"github.com/msolo/git-mg/gitapi"
 	log "github.com/msolo/go-bis/glug"
 	"github.com/tebeka/atexit"
 
@@ -62,7 +63,7 @@ func runPush(ctx context.Context, cmd *cmdflag.Command, args []string) {
 	cfg, err := readConfigFromGit(remoteName)
 	exitOnError(err)
 
-	gitWorkdir := getGitWorkdir()
+	gitWorkdir := gitapi.GitWorkdir()
 	_, err = fullSync(cfg, gitWorkdir)
 	exitOnError(err)
 }
@@ -75,7 +76,7 @@ func runPull(ctx context.Context, cmd *cmdflag.Command, args []string) {
 	cfg, err := readConfigFromGit(remoteName)
 	exitOnError(err)
 
-	gitWorkdir := getGitWorkdir()
+	gitWorkdir := gitapi.GitWorkdir()
 	_, err = syncPull(cfg, gitWorkdir)
 	exitOnError(err)
 }

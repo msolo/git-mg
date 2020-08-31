@@ -7,6 +7,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/msolo/git-mg/gitapi"
 	log "github.com/msolo/go-bis/glug"
 )
 
@@ -32,7 +33,7 @@ func repoSetup() (*repo, error) {
 	if err := os.MkdirAll(upstreamDir, 0775); err != nil {
 		return nil, err
 	}
-	cmd := Command("git", "-C", upstreamDir, "init", "-q")
+	cmd := gitapi.Command("git", "-C", upstreamDir, "init", "-q")
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func repoSetup() (*repo, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd = Command("git", "-C", upstreamDir, "config", "receive.denyCurrentBranch", "ignore")
+	cmd = gitapi.Command("git", "-C", upstreamDir, "config", "receive.denyCurrentBranch", "ignore")
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
@@ -50,34 +51,34 @@ func repoSetup() (*repo, error) {
 	// /usr/bin/rsync is picked over /usr/local/bin/rsync, causing us to not
 	// use the newer rsync from homebrew and thus causing flags like
 	// --delete-missing-args to fail.
-	cmd = Command("git", "-C", upstreamDir, "config", "--add", "sync.rsyncRemotePath", "/usr/local/bin/rsync")
+	cmd = gitapi.Command("git", "-C", upstreamDir, "config", "--add", "sync.rsyncRemotePath", "/usr/local/bin/rsync")
 	if _, err := cmd.Output(); err != nil {
 		return nil, err
 	}
-	cmd = Command("git", "-C", upstreamDir, "add", "dummy")
+	cmd = gitapi.Command("git", "-C", upstreamDir, "add", "dummy")
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	cmd = Command("git", "-C", upstreamDir, "commit", "-q", "-m", "initial commit")
+	cmd = gitapi.Command("git", "-C", upstreamDir, "commit", "-q", "-m", "initial commit")
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 	localDir := path.Join(tmpDir, "local")
 	syncDir := path.Join(tmpDir, "sync")
-	cmd = Command("git", "-C", upstreamDir, "clone", "-q", upstreamDir, localDir)
+	cmd = gitapi.Command("git", "-C", upstreamDir, "clone", "-q", upstreamDir, localDir)
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	cmd = Command("git", "-C", upstreamDir, "clone", "-q", upstreamDir, syncDir)
+	cmd = gitapi.Command("git", "-C", upstreamDir, "clone", "-q", upstreamDir, syncDir)
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	cmd = Command("git", "-C", localDir, "remote", "add", "sync", "localhost:"+syncDir)
+	cmd = gitapi.Command("git", "-C", localDir, "remote", "add", "sync", "localhost:"+syncDir)
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 	wd, _ := os.Getwd()
-	cmd = Command(path.Join(wd, "git-sync"), "push")
+	cmd = gitapi.Command(path.Join(wd, "git-sync"), "push")
 	cmd.Dir = localDir
 	if _, err := cmd.Output(); err != nil {
 		return nil, err
@@ -94,7 +95,7 @@ func failOnErr(t *testing.T, err error) {
 
 func failOnCmdError(t *testing.T, workdir string, bin string, args ...string) {
 	t.Helper()
-	cmd := Command(bin, args...)
+	cmd := gitapi.Command(bin, args...)
 	cmd.Dir = workdir
 	_, err := cmd.Output()
 	failOnErr(t, err)
@@ -151,9 +152,8 @@ func TestSync(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	if val := os.Getenv("GIT_TRACE"); val != "" && val != "0" {
-		log.SetLevel(log.DebugLevel)
+		log.SetLevel("INFO")
 	}
-	log.SetHandler(log.HandlerFunc(glogLine))
 	// call flag.Parse() here if TestMain uses flags
 	os.Exit(m.Run())
 }

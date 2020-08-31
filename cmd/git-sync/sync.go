@@ -35,7 +35,7 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 		// workdirs must talk to the same central server.
 		"ForwardAgent": "yes",
 		// If we use control sockets, we need to set loglevel=quiet so that we don"t
-		// litter lines like "Shared connection to msolo-dbx closed." after every command.
+		// litter lines like "Shared connection to <host> closed." after every command.
 		"LogLevel":              "quiet",
 		"ServerAliveInterval":   "60",
 		"StrictHostKeyChecking": "no",
@@ -601,7 +601,7 @@ elif [[ $CHECKOUT_REQUIRED == 1 ]]; then
 fi
 
 if [[ $CLEAN_REQUIRED == 1 ]]; then
-  # git clean can get significantly if the index is not "tidy" - which is
+  # git clean can slow significantly if the index is not "tidy" - which is
   # difficult to quantify. Usually an update-index improves performance.
   {{.GitRemotePath}} -C {{.RemoteDir}} clean -qfdx {{.ExcludePaths}} &
   pids+=" $!"

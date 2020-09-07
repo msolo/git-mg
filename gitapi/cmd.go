@@ -27,7 +27,7 @@ func init() {
 func (cmd *Cmd) bashString() string {
 	args := make([]string, len(cmd.Args))
 	for i, x := range cmd.Args {
-		args[i] = BashQuote(x)
+		args[i] = BashQuoteWord(x)
 	}
 	return strings.Join(args, " ")
 }

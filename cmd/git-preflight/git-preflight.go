@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/msolo/git-mg/gitapi"
 	"github.com/msolo/go-bis/glug"
+	"github.com/msolo/jsonc"
 )
 
 const (
@@ -37,12 +36,15 @@ type PreflightConfig struct {
 }
 
 func readConfig(fname string) (*PreflightConfig, error) {
-	data, err := ioutil.ReadFile(fname)
+	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	cfg := &PreflightConfig{}
-	if err := json.Unmarshal(data, cfg); err != nil {
+	dec := jsonc.NewDecoder(f)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(cfg); err != nil {
 		return nil, err
 	}
 	if err := validateConfig(cfg); err != nil {
@@ -52,9 +54,80 @@ func readConfig(fname string) (*PreflightConfig, error) {
 }
 
 func validateConfig(cfg *PreflightConfig) error {
+	nameMap := make(map[string]bool)
+	for _, t := range cfg.Triggers {
+		if exists := nameMap[t.Name]; exists {
+			return fmt.Errorf("duplicate trigger name: %s", t.Name)
+		} else {
+			nameMap[t.Name] = true
+		}
+		if err := validateTrigger(&t); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateTrigger(tr *TriggerConfig) error {
 	// FIXME(msolo) validate "input type" and pattern compilation.
 	// Multiple keys with the same name is not an error in JSON.
+	if tr.Name == "" {
+		return fmt.Errorf("empty trigger name")
+	} else if strings.ContainsAny(tr.Name, " \t\r\n") {
+		return fmt.Errorf("invalid trigger name containing whitespace: %q", tr.Name)
+	}
+
+	switch tr.InputType {
+	case "args":
+	default:
+		return fmt.Errorf("invalid trigger input type %q for trigger %s", tr.InputType, tr.Name)
+	}
+	for _, pat := range tr.Includes {
+		if _, err := path.Match(pat, ""); err != nil {
+			return fmt.Errorf("invalid include pattern %q for trigger %s: %v", pat, tr.Name, err)
+		}
+	}
+
+	for _, pat := range tr.Excludes {
+		if _, err := path.Match(pat, ""); err != nil {
+			return fmt.Errorf("invalid exclude pattern %q for trigger %s: %v", pat, tr.Name, err)
+		}
+	}
 	return nil
+}
+
+// Match is similar to fnmatch.
+// Patterns containing no / are only matched against the basename, unlike path.Match.
+// Includes are applied first and then filtered by excludes.
+// FIXME(msolo) Incorporate ideas from gitignore style matching like ** and ! ?
+func match(tr *TriggerConfig, fname string) (bool, error) {
+	for _, pat := range tr.Includes {
+		matchName := fname
+		if !strings.Contains(pat, "/") {
+			matchName = path.Base(fname)
+		}
+		include, err := path.Match(pat, matchName)
+		//fmt.Println("check fname", fname, "matchName", matchName, "pattern", pat, include)
+		if err != nil {
+			return false, err
+		}
+		if !include {
+			continue
+		}
+		exclude := false
+		for _, pat := range tr.Excludes {
+			exclude, err = path.Match(pat, matchName)
+			if err != nil {
+				return false, err
+			}
+			if exclude {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func exitOnError(err error) {
@@ -119,17 +192,12 @@ func runPreflight(gitWorkdir string, commitHash string, triggerNames []string, v
 
 	allTriggerNames := make([]string, 0, len(cfg.Triggers))
 	for _, tr := range cfg.Triggers {
-		name := strings.ToLower(tr.Name)
-		cfgTriggerMap[name] = &tr
-		allTriggerNames = append(allTriggerNames, name)
+		cfgTriggerMap[tr.Name] = &tr
+		allTriggerNames = append(allTriggerNames, tr.Name)
 	}
 
 	// If there are no explicit triggers, run them all.
-	if len(triggerNames) > 0 {
-		for i, name := range triggerNames {
-			triggerNames[i] = strings.ToLower(name)
-		}
-	} else {
+	if len(triggerNames) == 0 {
 		triggerNames = allTriggerNames
 	}
 
@@ -142,35 +210,20 @@ func runPreflight(gitWorkdir string, commitHash string, triggerNames []string, v
 	}
 
 	hasError := false
-	// Iterate over triggers as configure to presever execution order.
+	// Iterate over triggers as configured to preserve execution order.
 	for _, tr := range cfg.Triggers {
-		if !enabledTriggers[strings.ToLower(tr.Name)] {
+		if !enabledTriggers[tr.Name] {
 			continue
 		}
 
 		fnames := make([]string, 0, len(changedFiles))
 		for _, fname := range changedFiles {
-			for _, pat := range tr.Includes {
-				matchName := fname
-				if !strings.Contains(pat, "/") {
-					matchName = path.Base(fname)
-				}
-				include, err := path.Match(pat, matchName)
-				//fmt.Println("check fname", fname, "matchName", matchName, "pattern", pat, include)
+			matched, err := match(&tr, fname)
+			if err != nil {
 				exitOnError(err)
-				if include {
-					exclude := false
-					for _, pat := range tr.Excludes {
-						exclude, err = path.Match(pat, matchName)
-						exitOnError(err)
-						if exclude {
-							break
-						}
-					}
-					if !exclude {
-						fnames = append(fnames, matchName)
-					}
-				}
+			}
+			if matched {
+				fnames = append(fnames, fname)
 			}
 		}
 		if len(fnames) == 0 {

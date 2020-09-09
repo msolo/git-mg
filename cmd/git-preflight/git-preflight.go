@@ -167,7 +167,7 @@ func runPreflight() {
 	triggerNames := flag.Args()
 
 	gitWorkdir := gitapi.GitWorkdir()
-	if err := os.Chdir(gitWorkdir); err != nil{
+	if err := os.Chdir(gitWorkdir); err != nil {
 		log.Fatal(err)
 	}
 

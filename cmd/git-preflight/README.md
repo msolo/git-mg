@@ -9,7 +9,7 @@ Having a standard config for triggers permits easy subsetting, tagging or other 
 
 # Config
 
-Triggers are stored in the repository root in `.git-preflight`. The file is JSONC - which is simply JSON with the added wonderfeature of comments. Right now there is only one `.git-preflight` per repo - more didn't seem to make a lot of sense based on how it is used.
+Triggers are stored in the repository root in `.git-preflight`. The file is [JSONC](https://github.com/msolo/jsonc) - which is simply JSON with the added wonderfeature of comments. Right now there is only one `.git-preflight` per repo - more didn't seem to make a lot of sense based on how it is used.
 
 Includes and Excludes patterns are interpreted similarly to fnmatch rules, though patterns without a / character will be matched against the file name only, not the path.
 
@@ -17,7 +17,7 @@ This is an annotated sample config that runs gofmt on all changed *.go files tha
 
 ```
 {
-  // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
+  // Comments are allowed, this is a JSONC file. See https://github.com/msolo/jsonc for more details.
   "triggers": [
     {
       "name": "gofmt-or-go-home", // A short name to disambiguate.
@@ -66,4 +66,4 @@ Install bash completions by running:
   complete -C git-prefight git-preflight
 ```
 
-With `-v`, the tool logs verbosely to the console and injects GIT_PREFLIGHT_VERBOSE=1 into the environment of all triggers so that downstream processes can emit their own additional statement on stderr.
+With `-v`, the tool logs verbosely to the console and injects `GIT_PREFLIGHT_VERBOSE=1` into the environment of all triggers so that downstream processes can emit their own additional statement on stderr.

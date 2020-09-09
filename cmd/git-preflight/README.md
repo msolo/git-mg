@@ -13,9 +13,9 @@ Triggers are stored in the repository root in `.git-preflight`. The file is JSON
 
 Includes and Excludes patterns are interpreted similarly to fnmatch rules, though patterns without a / character will be matched against the file name only, not the path.
 
-```
 This is an annotated sample config that runs gofmt on all changed *.go files that aren't vendored.
 
+```
 {
   // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
   "triggers": [

@@ -26,7 +26,7 @@ func bashQuoteWord(s string) string {
 	return "'" + strings.Replace(s, "'", "'\"'\"'", -1) + "'"
 }
 
-func BashQuote(args... string) []string {
+func BashQuote(args ...string) []string {
 	out := make([]string, len(args))
 	for i, x := range args {
 		out[i] = bashQuoteWord(x)

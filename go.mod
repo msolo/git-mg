@@ -9,6 +9,7 @@ require (
 	github.com/msolo/go-bis/glug v0.0.0-20191130031305-a08461dd90e6
 	github.com/msolo/jsonc v0.0.0-20200906194452-9ff75078c8c4
 	github.com/pkg/errors v0.8.1
+	github.com/posener/complete/v2 v2.0.1-alpha.12
 	github.com/tebeka/atexit v0.1.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 )

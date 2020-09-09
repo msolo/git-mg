@@ -1,9 +1,25 @@
 {
-    "Triggers": [
-        {"Name": "gofmt",
-         "Includes": ["*.go"],
-         "InputType": "args",
-         "Cmd": ["gofmt", "-w"]
-        }
-    ]
+  "Triggers": [
+    {
+      "Name": "gofmt",
+      "Includes": [
+        "*.go"
+      ],
+      "InputType": "args",
+      "Cmd": [
+        "gofmt",
+        "-w"
+      ]
+    },
+    // superfluous degenereate trigger for testing purpose
+    {
+      "Name": "superfluous",
+      "Includes": [
+      ],
+      "InputType": "args",
+      "Cmd": [
+        "true"
+      ]
+    }
+  ]
 }

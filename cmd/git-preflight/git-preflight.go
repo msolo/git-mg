@@ -1,19 +1,20 @@
 package main
 
 import (
-	"context"
+	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path"
 	"sort"
 	"strings"
 
-	"github.com/msolo/cmdflag"
 	"github.com/msolo/git-mg/gitapi"
-	"github.com/msolo/go-bis/glug"
+	log "github.com/msolo/go-bis/glug"
 	"github.com/msolo/jsonc"
+
+	"github.com/posener/complete/v2"
+	"github.com/posener/complete/v2/predict"
 )
 
 const (
@@ -133,7 +134,7 @@ func match(tr *TriggerConfig, fname string) (bool, error) {
 func exitOnError(err error) {
 	if err != nil {
 		// log.Fatal and glug.Exit are about the same. glug.Fatal has a lot of stack litter.
-		glug.Exit(err)
+		log.Exit(err)
 	}
 }
 
@@ -145,30 +146,30 @@ func isDir(fname string) bool {
 	return fi.IsDir()
 }
 
-func runPreflight(ctx context.Context, cmd *cmdflag.Command, args []string) {
-	var dryRun bool
-	var verbose bool
-	var commitHash string
-	fs := cmd.BindFlagSet(map[string]interface{}{
-		"commit-hash": &commitHash,
-		"dry-run":     &dryRun,
-		"v": &verbose,
-	})
-	fs.Parse(args)
-	triggerNames := fs.Args()
+func runPreflight() {
+	triggerNames := flag.Args()
 
 	gitWorkdir := gitapi.GitWorkdir()
+	if err := os.Chdir(gitWorkdir); err != nil{
+		log.Fatal(err)
+	}
 
-	if verbose {
+	if *verbose {
 		os.Setenv("GIT_PREFLIGHT_VERBOSE", "1")
 	}
 
-	cfg, err := readConfig(path.Join(gitWorkdir, ".git-preflight"))
+	if *configFile == "" {
+		*configFile = path.Join(gitWorkdir, ".git-preflight")
+	}
+	cfg, err := readConfig(*configFile)
 	exitOnError(err)
+	if *validate {
+		return
+	}
 
 	var changedFiles []string
-	if commitHash != "" {
-		changedFiles, err = gitapi.GetGitCommitChanges(gitWorkdir, commitHash)
+	if *commitHash != "" {
+		changedFiles, err = gitapi.GetGitCommitChanges(gitWorkdir, *commitHash)
 		exitOnError(err)
 	} else {
 		mergeBaseHash, err := gitapi.GetMergeBaseCommitHash(gitWorkdir)
@@ -202,8 +203,8 @@ func runPreflight(ctx context.Context, cmd *cmdflag.Command, args []string) {
 	changedDirs := stringSet2Slice(changedDirSet)
 	sort.Strings(changedDirs)
 
-	glug.Infof("changedFiles: %s\n", strings.Join(changedFiles, ", "))
-	glug.Infof("changedDirs: %s\n", strings.Join(changedDirs, ", "))
+	log.Infof("changedFiles: %s\n", strings.Join(changedFiles, ", "))
+	log.Infof("changedDirs: %s\n", strings.Join(changedDirs, ", "))
 
 	cfgTriggerMap := make(map[string]*TriggerConfig)
 
@@ -247,7 +248,7 @@ func runPreflight(ctx context.Context, cmd *cmdflag.Command, args []string) {
 			continue
 		}
 
-		if verbose {
+		if *verbose {
 			fmt.Fprintf(os.Stderr, "run trigger %s: %s\n", tr.Name, strings.Join(fnames, ", "))
 		}
 
@@ -259,8 +260,8 @@ func runPreflight(ctx context.Context, cmd *cmdflag.Command, args []string) {
 			exitOnError(fmt.Errorf("invalid input type %q for trigger %q", tr.InputType, tr.Name))
 		}
 
-		if dryRun {
-			fmt.Fprintf(os.Stderr, "would run trigger %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
+		if *dryRun {
+			fmt.Fprintf(os.Stderr, "skipping %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
 			continue
 		}
 
@@ -287,26 +288,10 @@ func stringSet2Slice(ss map[string]bool) []string {
 	return sl
 }
 
-func runValidate(ctx context.Context, cmd *cmdflag.Command, args []string) {
-	for _, fname := range args {
-		println(fname)
-		_, err := readConfig(fname)
-		println(err)
-		if err != nil {
-			log.Fatalf("validation error: %s", err)
-		}
-
-	}
-}
-
 type predictTrigger struct{}
 
 // Predict a single valid name for a trigger.
-func (*predictTrigger) Predict(cargs cmdflag.Args) []string {
-	// if cargs.LastCompleted != "run" {
-	// 	return nil
-	// }
-
+func (*predictTrigger) Predict(prefix string) []string {
 	gitWorkdir := gitapi.GitWorkdir()
 	cfg, err := readConfig(path.Join(gitWorkdir, ".git-preflight"))
 	if err != nil {
@@ -316,7 +301,7 @@ func (*predictTrigger) Predict(cargs cmdflag.Args) []string {
 
 	names := make([]string, 0, len(cfg.Triggers))
 	for _, t := range cfg.Triggers {
-		if cargs.LastCompleted != t.Name {
+		if strings.HasPrefix(t.Name, prefix) {
 			names = append(names, t.Name)
 		}
 	}
@@ -324,63 +309,62 @@ func (*predictTrigger) Predict(cargs cmdflag.Args) []string {
 	return names
 }
 
-var cmdRun = &cmdflag.Command{
-	Name: "run",
-	Run:  runPreflight,
-	Args: &predictTrigger{},
-	Flags: []cmdflag.Flag{
-		{"v", cmdflag.FlagTypeBool, false, "Increase logging", nil},
-		{"commit-hash", cmdflag.FlagTypeString, "", "Use a specific commit to generate a list of changed files.", nil},
-		{"dry-run", cmdflag.FlagTypeBool, false, "Log the triggers that would execute.", nil},
-	},
-	UsageLine: `Run triggers.`,
-	UsageLong: `Run triggers.
+var (
+	// Add variables to the program. Since we are using the compflag library, we can pass options to
+	// enable bash completion to the flag values.
+	commitHash = flag.String("commit-hash", "", "Use a specific commit to generate a list of changed files.")
+	configFile = flag.String("config-file", "", "Use the specified config file.")
+	validate   = flag.Bool("validate", false, "Exit after validating the config.")
+	verbose    = flag.Bool("v", false, "Print more debug data.")
+	dryRun     = flag.Bool("dry-run", false, "Log the triggers and commands that would have been executed.")
+)
 
-  git-preflight run [<trigger name>, ...]`,
-}
+var docPreamble = `git-preflight [-validate] [-config-file] [-v] [-dry-run] [-commit-hash] [<trigger name>, ...]
 
-var cmdValidate = &cmdflag.Command{
-	Name: "validate",
-	Run:  runValidate,
-	// FIXME(msolo) PredictFiles does not seem to pick up ../
-	Args:      cmdflag.PredictFiles("*"),
-	UsageLine: `Validate the config file.`,
-	UsageLong: `Validate the config file.
-  git-preflight validate <preflight-config-file>
-`,
-}
+Run all triggers for all files changed with respect to the merge base:
+  git-preflight
 
-var cmdMain = &cmdflag.Command{
-	Name:      "git-preflight",
-	UsageLong: ``,
-	Flags:     []cmdflag.Flag{},
-	Args:      cmdflag.PredictNothing,
-}
+Run a specific trigger for all files changed with respect to the merge base:
+	git-preflight <trigger name>
 
-var subcommands = []*cmdflag.Command{
-	cmdRun,
-	cmdValidate,
-}
+Setting GIT_TRACE_PERFORMANCE=1 or setting -log.level=INFO shows detailed performance logging.
+`
+
+var docTrailer = `
+Install bash completions by running:
+  complete -C git-prefight git-preflight
+`
 
 func main() {
-	// glug.RegisterFlags(flag.CommandLine)
-	// flag.Parse()
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of git-preflight:\n\n%s\n", docPreamble)
+		flag.PrintDefaults()
+		fmt.Fprint(os.Stderr, docTrailer)
+	}
+	if val := os.Getenv("GIT_TRACE_PERFORMANCE"); val != "" && val != "0" {
+		log.SetLevel("INFO")
+	} else {
+		log.SetLevel("WARNING")
+	}
 
-	// if val := os.Getenv("GIT_TRACE_PERFORMANCE"); val != "" && val != "0" {
-	// 	log.SetLevel("INFO")
-	// } else {
-	// 	log.SetLevel("WARNING")
-	// }
+	log.RegisterFlags(flag.CommandLine)
 
-	//	log.RegisterFlags(fs)
-	// RegisterFlags(fs)
+	cmd := &complete.Command{
+		Args: &predictTrigger{},
+		Flags: map[string]complete.Predictor{
+			"commit-hash": predict.Something,
+			"config-file": predict.Files("*"),
+			"validate":    predict.Nothing,
+			"v":           predict.Nothing,
+			"dry-run":     predict.Nothing,
+			"log.level":   predict.Set([]string{"INFO", "WARNING", "ERROR"}),
+		},
+	}
 
-	// fs.BoolVar(&verbose, "v", false, "Enable more console output")
-	// fs.BoolVar(&dryRun, "dry-run", false, "Late comment")
+	// Run the completion.
+	cmd.Complete(os.Args[0])
 
-	cmd, args := cmdflag.Parse(cmdMain, subcommands)
+	flag.Parse()
 
-	ctx := context.Background()
-println("run cmd")
-	cmd.Run(ctx, cmd, args)
+	runPreflight()
 }

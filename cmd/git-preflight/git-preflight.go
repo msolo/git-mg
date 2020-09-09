@@ -40,19 +40,19 @@ const (
 
 // Define a command that will be executed when a relevant file changed.
 type TriggerConfig struct {
-	Name string
-	Cmd  []string
+	Name string   `json:"name"`
+	Cmd  []string `json:"cmd"`
 	// Define how the changed files are passed to the command.
-	InputType string
-	Includes  []string
-	Excludes  []string
+	InputType string   `json:"input_type"`
+	Includes  []string `json:"includes"`
+	Excludes  []string `json:"excludes"`
 }
 
 // Config global include/exclude rules
 type PreflightConfig struct {
 	// Triggers are executed in order.
 	// FIXME(msolo) specify how to run them in parallel? Or just rely on shell scripts underneath?
-	Triggers []TriggerConfig
+	Triggers []TriggerConfig `json:"triggers"`
 }
 
 func readConfig(fname string) (*PreflightConfig, error) {
@@ -371,10 +371,11 @@ Install bash completions by running:
 `
 
 func main() {
+	flag.CommandLine.SetOutput(os.Stdout)
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of git-preflight:\n\n%s\n", docPreamble)
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of git-preflight:\n\n%s\n", docPreamble)
 		flag.PrintDefaults()
-		fmt.Fprint(os.Stderr, docTrailer)
+		fmt.Fprint(flag.CommandLine.Output(), docTrailer)
 	}
 	if val := os.Getenv("GIT_TRACE_PERFORMANCE"); val != "" && val != "0" {
 		log.SetLevel("INFO")

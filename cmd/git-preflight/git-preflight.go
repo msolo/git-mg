@@ -1,3 +1,20 @@
+/*
+
+{
+  // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
+  "triggers": [
+    {
+      "name": "gofmt-or-go-home", // A short name to disambiguate.
+      "input_type": "args", // Specify that files are appended as arguments to the command.
+      "cmd": ["gofmt", "-w"] // Run this command when files are matched.
+      // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
+      "includes": ["*.go"], // Run on modified files that match the given glob. See fnmatch for more details.
+      "excludes": ["vendor/*"] // Skip included files that match any of these globs. ** is not supported.
+    }
+  ]
+}
+
+*/
 package main
 
 import (
@@ -328,6 +345,24 @@ Run a specific trigger for all files changed with respect to the merge base:
 	git-preflight <trigger name>
 
 Setting GIT_TRACE_PERFORMANCE=1 or setting -log.level=INFO shows detailed performance logging.
+
+The config file .git-preflight should be place in the root directory of the repository.
+
+This is an annotated sample config that runs gofmt on all changed *.go files that aren't vendored.
+
+{
+  // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
+  "triggers": [
+    {
+      "name": "gofmt-or-go-home", // A short name to disambiguate.
+      "input_type": "args", // Specify that files are appended as arguments to the command.
+      "cmd": ["gofmt", "-w"] // Run this command when files are matched.
+      // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
+      "includes": ["*.go"], // Run on modified files that match the given glob. See fnmatch for more details.
+      "excludes": ["vendor/*"] // Skip included files that match any of these globs. ** is not supported.
+    }
+  ]
+}
 `
 
 var docTrailer = `

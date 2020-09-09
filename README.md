@@ -1,7 +1,7 @@
 # git-mg
 A tool to facilitate working with very large git repos.
 
-Originally, git-mg was intended to be a complete wrapper that made git work sanely in the typical degenerate work environment which is substantially different than how many open source projects are managed. Much of this is as-yet unrealized, but some of the core tools are useful regardless.
+Originally, `git-mg` was intended to be a complete wrapper that made git work sanely in the typical degenerate work environment which is substantially different than how many open source projects are managed. Much of this is as-yet unfit for human conumption, but some of the peripheral tools are very useful regardless.
 
 # [git-sync](cmd/git-sync)
 

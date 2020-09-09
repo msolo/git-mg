@@ -1,0 +1,24 @@
+// This file is JSONC - see http://github.com/msolo/jsonc
+{
+  "triggers": [
+    {
+      "name": "gofmt",
+      "includes": [
+        "*.go"
+      ],
+      "input_type": "args",
+      "cmd": [
+        "gofmt",
+        "-w"
+      ]
+    },
+    // superfluous degenereate trigger for testing purpose
+    {
+      "name": "superfluous",
+      "input_type": "args",
+      "cmd": [
+        "true"
+      ]
+    }
+  ]
+}

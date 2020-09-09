@@ -25,11 +25,7 @@ func init() {
 }
 
 func (cmd *Cmd) bashString() string {
-	args := make([]string, len(cmd.Args))
-	for i, x := range cmd.Args {
-		args[i] = BashQuote(x)
-	}
-	return strings.Join(args, " ")
+	return strings.Join(BashQuote(cmd.Args...), " ")
 }
 
 type ExitError struct {

@@ -4,7 +4,8 @@ import "strings"
 
 const safeUnquoted = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@%_-+=:,./"
 
-func BashQuote(s string) string {
+// Return a string quoted for use in bash. This prefers single-quoted outputs to disable unnecessary secondary evaluation. The main use is printing a debug string that can be safely copy-pasted into a shell for further debugging.
+func bashQuoteWord(s string) string {
 	// Double escaping ~ neuters expansion and ~ is implicit.
 	if strings.HasPrefix(s, "~/") {
 		return s
@@ -23,4 +24,12 @@ func BashQuote(s string) string {
 		return s
 	}
 	return "'" + strings.Replace(s, "'", "'\"'\"'", -1) + "'"
+}
+
+func BashQuote(args ...string) []string {
+	out := make([]string, len(args))
+	for i, x := range args {
+		out[i] = bashQuoteWord(x)
+	}
+	return out
 }

@@ -64,7 +64,7 @@ func makeSSHArgs(cfg *config, addr string, bashCmdArgs []string) []string {
 	}
 
 	if len(bashCmdArgs) > 0 {
-		bashCmd := "/bin/bash --noprofile --norc -c " + gitapi.BashQuote(strings.Join(bashCmdArgs, " "))
+		bashCmd := "/bin/bash --noprofile --norc -c " + gitapi.BashQuote(strings.Join(bashCmdArgs, " "))[0]
 		sshArgs = append(sshArgs, bashCmd)
 	}
 	return sshArgs
@@ -304,7 +304,7 @@ func remoteGitFetchCmd(cfg *config, workdir string) (*gitapi.Cmd, error) {
 	shCmdFmt := struct {
 		RemoteDir     string
 		GitRemotePath string
-	}{gitapi.BashQuote(cfg.remoteDir()), cfg.gitRemotePath}
+	}{gitapi.BashQuote(cfg.remoteDir())[0], cfg.gitRemotePath}
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tmpl.Execute(buf, shCmdFmt); err != nil {
 		return nil, err
@@ -374,10 +374,7 @@ func rsyncPushCmd(cfg *config, workdir string, filePaths []string) (*gitapi.Cmd,
 	}
 
 	sshArgs := []string{"ssh"}
-	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
-	for i, arg := range sshArgs {
-		sshArgs[i] = gitapi.BashQuote(arg)
-	}
+	sshArgs = append(sshArgs, gitapi.BashQuote(makeSSHArgs(cfg, "", nil)...)...)
 	rsyncCmdArgs := []string{
 		"-czlptgo",
 		"-e", strings.Join(sshArgs, " "),
@@ -424,10 +421,7 @@ func rsyncPullCmd(cfg *config, workdir string, filePaths []string) (*gitapi.Cmd,
 	}
 
 	sshArgs := []string{"ssh"}
-	sshArgs = append(sshArgs, makeSSHArgs(cfg, "", nil)...)
-	for i, arg := range sshArgs {
-		sshArgs[i] = gitapi.BashQuote(arg)
-	}
+	sshArgs = append(sshArgs, gitapi.BashQuote(makeSSHArgs(cfg, "", nil)...)...)
 	rsyncCmdArgs := []string{
 		"-czlptgo",
 		"-e", strings.Join(sshArgs, " "),

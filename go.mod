@@ -13,5 +13,3 @@ require (
 	github.com/tebeka/atexit v0.1.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 )
-
-replace github.com/msolo/cmdflag => ../cmdflag

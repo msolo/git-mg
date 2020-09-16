@@ -53,17 +53,17 @@ func readConfigFromGit(remoteName string) (*config, error) {
 	cfg.gitConfig = gitConfig
 
 	if remoteName == "" {
-		remoteName = gitConfig["sync.remoteName"]
+		remoteName = gitConfig["sync.remotename"]
 	}
 	if remoteName != "" {
 		cfg.remoteName = remoteName
 	}
 
-	if excludePaths := gitConfig["sync.excludePaths"]; excludePaths != "" {
+	if excludePaths := gitConfig["sync.excludepaths"]; excludePaths != "" {
 		cfg.excludePaths = strings.Split(strings.TrimSpace(excludePaths), ":")
 	}
 
-	if rpath := gitConfig["sync.rsyncRemotePath"]; rpath != "" {
+	if rpath := gitConfig["sync.rsyncremotepath"]; rpath != "" {
 		cfg.rsyncRemotePath = rpath
 	}
 

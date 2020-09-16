@@ -52,7 +52,7 @@ func (wd *gitWorkDir) GitConfig() (map[string]string, error) {
 		if len(keyValTuple) != 2 {
 			log.Warningf("invalid git config tuple: %d %v", len(keyValTuple), keyValTuple)
 		}
-		gitConfig[keyValTuple[0]] = keyValTuple[1]
+		gitConfig[strings.ToLower(keyValTuple[0])] = keyValTuple[1]
 	}
 	return gitConfig, nil
 }

@@ -18,7 +18,7 @@ type config struct {
 	excludePaths       []string
 	remoteName         string
 	remoteURL          string
-	gitConfig          map[string]string
+	gitConfig          gitapi.GitConfig
 }
 
 func (cfg config) remoteSSHAddr() string {
@@ -53,27 +53,27 @@ func readConfigFromGit(remoteName string) (*config, error) {
 	cfg.gitConfig = gitConfig
 
 	if remoteName == "" {
-		remoteName = gitConfig["sync.remoteName"]
+		remoteName = gitConfig.Get("sync.remotename")
 	}
 	if remoteName != "" {
 		cfg.remoteName = remoteName
 	}
 
-	if excludePaths := gitConfig["sync.excludePaths"]; excludePaths != "" {
+	if excludePaths := gitConfig.Get("sync.excludepaths"); excludePaths != "" {
 		cfg.excludePaths = strings.Split(strings.TrimSpace(excludePaths), ":")
 	}
 
-	if rpath := gitConfig["sync.rsyncRemotePath"]; rpath != "" {
+	if rpath := gitConfig.Get("sync.rsyncremotepath"); rpath != "" {
 		cfg.rsyncRemotePath = rpath
 	}
 
 	remoteURLKey := "remote." + cfg.remoteName + ".url"
-	cfg.remoteURL = strings.TrimSpace(gitConfig[remoteURLKey])
+	cfg.remoteURL = strings.TrimSpace(gitConfig.Get(remoteURLKey))
 	if cfg.remoteURL == "" {
 		return nil, errors.Errorf("no url specified for remote name %q %#v", cfg.remoteName, gitConfig)
 	}
 
-	cfg.fsmonitorLocalPath = gitConfig["core.fsmonitor"]
+	cfg.fsmonitorLocalPath = gitConfig.Get("core.fsmonitor")
 
 	return &cfg, nil
 }

@@ -39,22 +39,41 @@ func NewGitWorkdir() *gitWorkDir {
 	return &gitWorkDir{GitWorkdir()}
 }
 
-func (wd *gitWorkDir) GitConfig() (map[string]string, error) {
+type GitConfig interface {
+	Get(key string) string
+}
+
+type gitConfig map[string]string
+
+// Normalize git config keys based on the `man git-config` - subsections are case-sensitive.
+func (gc gitConfig) Get(key string) string {
+	kf := strings.Split(key, ".")
+	if len(kf) == 3 {
+		kf[0] = strings.ToLower(kf[0])
+		kf[2] = strings.ToLower(kf[2])
+		key = strings.Join(kf, ".")
+	} else {
+		key = strings.ToLower(key)
+	}
+	return gc[key]
+}
+
+func (wd *gitWorkDir) GitConfig() (GitConfig, error) {
 	gitCmd := wd.gitCommand("config", "-z", "-l")
 	output, err := gitCmd.Output()
 	if err != nil {
 		return nil, errors.WithMessage(err, "git config failed")
 	}
 	entries := SplitNullTerminated(string(output))
-	gitConfig := make(map[string]string)
+	cfg := gitConfig(make(map[string]string))
 	for _, ent := range entries {
 		keyValTuple := strings.SplitN(ent, "\n", 2)
 		if len(keyValTuple) != 2 {
 			log.Warningf("invalid git config tuple: %d %v", len(keyValTuple), keyValTuple)
 		}
-		gitConfig[keyValTuple[0]] = keyValTuple[1]
+		cfg[keyValTuple[0]] = keyValTuple[1]
 	}
-	return gitConfig, nil
+	return cfg, nil
 }
 
 func GetRestrictedEnv() []string {

@@ -9,7 +9,7 @@ Having a standard config for triggers permits easy subsetting, tagging or other 
 
 # Config
 
-Triggers are stored in the repository root in `.git-preflight`. The file is [JSONC](https://github.com/msolo/jsonc) - which is simply JSON with the added wonderfeature of comments. Right now there is only one `.git-preflight` per repo - more didn't seem to make a lot of sense based on how it is used.
+Triggers are stored in the repository root in `.git-preflight`. The file is [JSONR](https://github.com/msolo/jsonr) - which is simply JSON with the added wonderfeature of comments. Right now there is only one `.git-preflight` per repo - more didn't seem to make a lot of sense based on how it is used.
 
 Includes and Excludes patterns are interpreted similarly to fnmatch rules, though patterns without a / character will be matched against the file name only, not the path.
 
@@ -17,15 +17,23 @@ This is an annotated sample config that runs gofmt on all changed *.go files tha
 
 ```
 {
-  // Comments are allowed, this is a JSONC file. See https://github.com/msolo/jsonc for more details.
+  // Comments are allowed, this is a JSONR file. See github.com/msolo/jsonr for more details.
   "triggers": [
     {
-      "name": "gofmt-or-go-home", // A short name to disambiguate.
-      "input_type": "args", // Specify that files are appended as arguments to the command.
-      "cmd": ["gofmt", "-w"] // Run this command when files are matched.
+      // A short name to disambiguate.
+      "name": "gofmt-or-go-home",
+      // Specify how changed files are passed to the command:
+      // args : appended as arguments to the command
+      // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
-      "includes": ["*.go"], // Run on modified files that match the given glob. See fnmatch for more details.
-      "excludes": ["vendor/*"] // Skip included files that match any of these globs. ** is not supported.
+      "input_type": "args",
+      // Run this command when files are matched.
+      "cmd": ["gofmt", "-w"],
+      // Run on modified files that match the given glob. See fnmatch for more details.
+      // Note that ** is not supported.
+      "includes": ["*.go"],
+      // Skip included files that match any of these globs. ** is not supported.
+      "excludes": ["vendor/*"]
     }
   ]
 }

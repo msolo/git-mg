@@ -4,8 +4,6 @@ github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/U
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-multierror v1.0.0 h1:iVjPR7a6H0tWELX5NxNe7bYopibicUzc7uPribsnS6o=
 github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
-github.com/hashicorp/go-multierror v1.1.0 h1:B9UzwGQJehnUY1yNrnwREHc3fGbC2xefo8g4TbElacI=
-github.com/hashicorp/go-multierror v1.1.0/go.mod h1:spPvp8C1qA32ftKqdAHm4hHTbPw+vmowP0z+KUhOZdA=
 github.com/mattn/go-isatty v0.0.10 h1:qxFzApOv4WsAL965uUPIsXzAKCZxN2p9UqdhFS4ZW10=
 github.com/mattn/go-isatty v0.0.10/go.mod h1:qgIWMr58cqv1PHHyhnkY9lrL7etaEgOFcMEpPG5Rm84=
 github.com/msolo/cmdflag v0.0.0-20190210200038-6764a396fb53 h1:OSU/bzH1Y4vCWSs/caYt25EIaVv5rmVfzAcwO7YCnW8=
@@ -14,8 +12,8 @@ github.com/msolo/go-bis/flock v0.0.0-20191101065341-2a5026438708 h1:TK9kJoVKQfnA
 github.com/msolo/go-bis/flock v0.0.0-20191101065341-2a5026438708/go.mod h1:eBXhTvx+j7LNRUQY0KlN6RRqvPlmF3P5u7rXvIFqaOM=
 github.com/msolo/go-bis/glug v0.0.0-20191130031305-a08461dd90e6 h1:h0akwkQwhIYf9XlbgRiSUwX2QjarbxDdxw0rroIPrjw=
 github.com/msolo/go-bis/glug v0.0.0-20191130031305-a08461dd90e6/go.mod h1:3LsZVZ6nXL6H0eskaEScYmkvsN31ZG7D5u412kuww34=
-github.com/msolo/jsonc v0.0.0-20200906194452-9ff75078c8c4 h1:nNMbb5xoEyP1NCrJymI9ViNjxm2iJ6RFRPaD2n45/a4=
-github.com/msolo/jsonc v0.0.0-20200906194452-9ff75078c8c4/go.mod h1:Voq9jAvbsJz+i3o9DjSKph2J+Ipr6yyLoEchYZUFnH8=
+github.com/msolo/jsonr v0.0.0-20200923220009-f8cd545d609b h1:JdQmCL0BbZNr02Q3875iGKQt+050P3J9O7W/XocLWpo=
+github.com/msolo/jsonr v0.0.0-20200923220009-f8cd545d609b/go.mod h1:jPaYTqoK786El4/5QwXKpmqKCqoHpjX1alTcpsmQvek=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -26,8 +24,6 @@ github.com/posener/complete/v2 v2.0.1-alpha.12 h1:0wvkuDfHb5vSZlNBYgpEH4XQHpF46M
 github.com/posener/complete/v2 v2.0.1-alpha.12/go.mod h1://JlL91cS2JV7rOl6LVHrRqBXoBUecJu3ILQPgbJiMQ=
 github.com/posener/script v1.0.4 h1:nSuXW5ZdmFnQIueLB2s0qvs4oNsUloM1Zydzh75v42w=
 github.com/posener/script v1.0.4/go.mod h1:Rg3ijooqulo05aGLyGsHoLmIOUzHUVK19WVgrYBPU/E=
-github.com/posener/script v1.1.5 h1:su+9YHNlevT+Hlq2Xul5skh5kYDIBE+x4xu+5mLDT9o=
-github.com/posener/script v1.1.5/go.mod h1:Rg3ijooqulo05aGLyGsHoLmIOUzHUVK19WVgrYBPU/E=
 github.com/stretchr/objx v0.1.0 h1:4G4v2dO3VZwixGIRoQ5Lfboy6nUhCyYzaqnIAPPhYs4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=

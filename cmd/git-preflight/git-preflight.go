@@ -1,15 +1,23 @@
 /*
 
 {
-  // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
+  // Comments are allowed, this is a JSONR file. See github.com/msolo/jsonr for more details.
   "triggers": [
     {
-      "name": "gofmt-or-go-home", // A short name to disambiguate.
-      "input_type": "args", // Specify that files are appended as arguments to the command.
-      "cmd": ["gofmt", "-w"] // Run this command when files are matched.
+      // A short name to disambiguate.
+      "name": "gofmt-or-go-home",
+      // Specify how changed files are passed to the command:
+      // args : appended as arguments to the command
+      // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
-      "includes": ["*.go"], // Run on modified files that match the given glob. See fnmatch for more details.
-      "excludes": ["vendor/*"] // Skip included files that match any of these globs. ** is not supported.
+      "input_type": "args",
+      // Run this command when files are matched.
+      "cmd": ["gofmt", "-w"],
+      // Run on modified files that match the given glob. See fnmatch for more details.
+      // Note that ** is not supported.
+      "includes": ["*.go"],
+      // Skip included files that match any of these globs. ** is not supported.
+      "excludes": ["vendor/*"]
     }
   ]
 }
@@ -28,7 +36,7 @@ import (
 
 	"github.com/msolo/git-mg/gitapi"
 	log "github.com/msolo/go-bis/glug"
-	"github.com/msolo/jsonc"
+	"github.com/msolo/jsonr"
 
 	"github.com/posener/complete/v2"
 	"github.com/posener/complete/v2/predict"
@@ -36,6 +44,7 @@ import (
 
 const (
 	InputTypeArgs = "args"
+	InputTypeNone = "none"
 )
 
 // Define a command that will be executed when a relevant file changed.
@@ -62,7 +71,7 @@ func readConfig(fname string) (*PreflightConfig, error) {
 	}
 	defer f.Close()
 	cfg := &PreflightConfig{}
-	dec := jsonc.NewDecoder(f)
+	dec := jsonr.NewDecoder(f)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(cfg); err != nil {
 		return nil, err
@@ -97,7 +106,7 @@ func validateTrigger(tr *TriggerConfig) error {
 	}
 
 	switch tr.InputType {
-	case "args":
+	case InputTypeNone, InputTypeArgs:
 	default:
 		return fmt.Errorf("invalid trigger input type %q for trigger %s", tr.InputType, tr.Name)
 	}
@@ -271,8 +280,10 @@ func runPreflight() {
 
 		cmdArgs := make([]string, 0, len(tr.Cmd))
 		cmdArgs = append(cmdArgs, tr.Cmd...)
-		if tr.InputType == "args" {
+		if tr.InputType == InputTypeArgs {
 			cmdArgs = append(cmdArgs, fnames...)
+		} else if tr.InputType == InputTypeNone {
+			// do nothing.
 		} else {
 			exitOnError(fmt.Errorf("invalid input type %q for trigger %q", tr.InputType, tr.Name))
 		}
@@ -351,15 +362,23 @@ The config file .git-preflight should be place in the root directory of the repo
 This is an annotated sample config that runs gofmt on all changed *.go files that aren't vendored.
 
 {
-  // Comments are allowed, this is a JSONC file. See github.com/msolo/jsonc for more details.
+  // Comments are allowed, this is a JSONR file. See github.com/msolo/jsonr for more details.
   "triggers": [
     {
-      "name": "gofmt-or-go-home", // A short name to disambiguate.
-      "input_type": "args", // Specify that files are appended as arguments to the command.
-      "cmd": ["gofmt", "-w"] // Run this command when files are matched.
+      // A short name to disambiguate.
+      "name": "gofmt-or-go-home",
+      // Specify how changed files are passed to the command:
+      // args : appended as arguments to the command
+      // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
-      "includes": ["*.go"], // Run on modified files that match the given glob. See fnmatch for more details.
-      "excludes": ["vendor/*"] // Skip included files that match any of these globs. ** is not supported.
+      "input_type": "args",
+      // Run this command when files are matched.
+      "cmd": ["gofmt", "-w"],
+      // Run on modified files that match the given glob. See fnmatch for more details.
+      // Note that ** is not supported.
+      "includes": ["*.go"],
+      // Skip included files that match any of these globs. ** is not supported.
+      "excludes": ["vendor/*"]
     }
   ]
 }

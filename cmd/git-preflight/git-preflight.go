@@ -8,6 +8,7 @@
       "name": "gofmt-or-go-home",
       // Specify how changed files are passed to the command:
       // args : appended as arguments to the command
+      // args-dirs : unique dirs with changed files appended as arguments to the command
       // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
       "input_type": "args",
@@ -43,8 +44,9 @@ import (
 )
 
 const (
-	InputTypeArgs = "args"
-	InputTypeNone = "none"
+	InputTypeArgs     = "args"
+	InputTypeArgsDirs = "args-dirs"
+	InputTypeNone     = "none"
 )
 
 // Define a command that will be executed when a relevant file changed.
@@ -106,7 +108,7 @@ func validateTrigger(tr *TriggerConfig) error {
 	}
 
 	switch tr.InputType {
-	case InputTypeNone, InputTypeArgs:
+	case InputTypeNone, InputTypeArgs, InputTypeArgsDirs:
 	default:
 		return fmt.Errorf("invalid trigger input type %q for trigger %s", tr.InputType, tr.Name)
 	}
@@ -172,6 +174,24 @@ func isDir(fname string) bool {
 	return fi.IsDir()
 }
 
+// Return unique sorted list of parent directories for the given file set.
+func files2dirs(fnames ...string) []string {
+	changedDirSet := make(map[string]bool)
+	for _, f := range fnames {
+		dirName := path.Dir(f)
+		if dirName != "." {
+			dirName = "./" + dirName
+		}
+		if isDir(dirName) {
+			changedDirSet[dirName] = true
+		}
+	}
+
+	changedDirs := stringSet2Slice(changedDirSet)
+	sort.Strings(changedDirs)
+	return changedDirs
+}
+
 func runPreflight() {
 	triggerNames := flag.Args()
 
@@ -218,16 +238,7 @@ func runPreflight() {
 
 	sort.Strings(changedFiles)
 
-	changedDirSet := make(map[string]bool)
-	for _, f := range changedFiles {
-		dirName := path.Dir(f)
-		if isDir(dirName) {
-			changedDirSet[dirName] = true
-		}
-	}
-
-	changedDirs := stringSet2Slice(changedDirSet)
-	sort.Strings(changedDirs)
+	changedDirs := files2dirs(changedFiles...)
 
 	log.Infof("changedFiles: %s\n", strings.Join(changedFiles, ", "))
 	log.Infof("changedDirs: %s\n", strings.Join(changedDirs, ", "))
@@ -282,6 +293,9 @@ func runPreflight() {
 		cmdArgs = append(cmdArgs, tr.Cmd...)
 		if tr.InputType == InputTypeArgs {
 			cmdArgs = append(cmdArgs, fnames...)
+		} else if tr.InputType == InputTypeArgsDirs {
+			dirs := files2dirs(fnames...)
+			cmdArgs = append(cmdArgs, dirs...)
 		} else if tr.InputType == InputTypeNone {
 			// do nothing.
 		} else {
@@ -291,9 +305,13 @@ func runPreflight() {
 		if *dryRun {
 			fmt.Fprintf(os.Stderr, "skipping %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
 			continue
+		} else {
+			fmt.Fprintf(os.Stderr, "running %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
 		}
 
 		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		cmd.Dir = gitWorkdir
 		if err := cmd.Run(); err != nil {
 			hasError = true
@@ -369,6 +387,7 @@ This is an annotated sample config that runs gofmt on all changed *.go files tha
       "name": "gofmt-or-go-home",
       // Specify how changed files are passed to the command:
       // args : appended as arguments to the command
+      // args-dirs : unique dirs with changed files appended as arguments to the command
       // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
       "input_type": "args",

@@ -1,0 +1,36 @@
+{
+  "triggers": [
+    {
+      "name": "go-gen",
+      "input_type": "args",
+      "cmd": ["go", "generate"],
+      "includes": ["*.go"]
+    },
+    {
+      "name": "go-fmt",
+      "input_type": "args",
+      "cmd": ["gofmt", "-w"],
+      "includes": ["*.go"]
+    },
+    {
+      "name": "go-vet",
+      "input_type": "args-dirs",
+      // Pass in each dir that contains a modified Go file - a package if you will.
+      "cmd": ["go", "vet"],
+      "includes": ["*.go"]
+    },
+    {
+      "name": "go-mod-tidy",
+      "input_type": "none",
+      "cmd": ["go", "mod", "tidy"],
+      "includes": ["*.go"]
+    },
+    {
+      "name": "go-test",
+      "input_type": "none",
+      // For now, run all tests and rely on Go test caching for performance.
+      "cmd": ["go", "test", "./..."],
+      "includes": ["*.go"]
+    }
+  ]
+}

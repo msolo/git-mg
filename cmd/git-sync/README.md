@@ -41,6 +41,7 @@ go get github.com/msolo/git-mg/cmd/git-fsmonitor
 
 # Configure git - more relevant for large repos, but generally harmless.
 git config core.fsmonitor git-fsmonitor
+git config core.fsmonitorhookversion 1
 git config core.untrackedcache true
 git update-index --index-version 4 --split-index --untracked-cache --fsmonitor --refresh
 ```
@@ -53,16 +54,16 @@ which git-sync > /dev/null && complete -C git-sync git-sync
 Configure git-sync in repo of your choosing:
 ```
 git remote set-url sync phoenix.casa:src/my-project
-git push
+git-sync push
 ```
 
 You can also pull changes from the remote workdir. This is not without some risk, and depending on your development model might not be necessary or even a good idea. That said, it has proved handy in a number of cases where the development platform (usually OS X) does not match the test/deploy platform (usually Linux) and the development environment does not have a full set of cross-compiling tools.
 
 ```
-git pull
+git-sync pull
 ```
 
 However, most of the time you will end up using in a batch of commands like so:
 ```
-git push && ssh remote "cd src; run-horrible-codegen" && git pull
+git-sync push && ssh remote "cd src; run-horrible-codegen" && git-sync pull
 ```

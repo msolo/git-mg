@@ -39,6 +39,9 @@ Install tools and configure git:
 go install -v github.com/msolo/git-mg/cmd/git-sync
 go install -v github.com/msolo/git-mg/cmd/git-fsmonitor
 
+# watch the repository
+watchman watch ./
+
 # Configure git - more relevant for large repos, but generally harmless.
 git config core.fsmonitor git-fsmonitor
 git config core.fsmonitorhookversion 1

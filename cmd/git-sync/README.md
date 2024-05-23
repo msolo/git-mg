@@ -36,8 +36,8 @@ brew install watchman
 Install tools and configure git:
 ```
 # Get the tools installed
-go get github.com/msolo/git-mg/cmd/git-sync
-go get github.com/msolo/git-mg/cmd/git-fsmonitor
+go install -v github.com/msolo/git-mg/cmd/git-sync
+go install -v github.com/msolo/git-mg/cmd/git-fsmonitor
 
 # Configure git - more relevant for large repos, but generally harmless.
 git config core.fsmonitor git-fsmonitor

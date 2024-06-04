@@ -36,8 +36,8 @@ brew install watchman
 Install tools and configure git:
 ```
 # Get the tools installed
-go get github.com/msolo/git-mg/cmd/git-sync
-go get github.com/msolo/git-mg/cmd/git-fsmonitor
+go install github.com/msolo/git-mg/cmd/git-sync@latest
+go install github.com/msolo/git-mg/cmd/git-fsmonitor@latest
 
 # Configure git - more relevant for large repos, but generally harmless.
 git config core.fsmonitor git-fsmonitor
@@ -53,7 +53,7 @@ which git-sync > /dev/null && complete -C git-sync git-sync
 
 Configure git-sync in repo of your choosing:
 ```
-git remote set-url sync phoenix.casa:src/my-project
+git remote add sync phoenix.casa:src/my-project
 git-sync push
 ```
 

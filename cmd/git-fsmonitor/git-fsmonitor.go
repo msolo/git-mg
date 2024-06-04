@@ -4,7 +4,8 @@
 // https://github.com/git/git/blob/master/templates/hooks--fsmonitor-watchman.sample
 //
 // Enable it via:
-//   git config core.fsmonitor git-fsmonitor
+//
+//	git config core.fsmonitor git-fsmonitor
 package main
 
 import (
@@ -111,7 +112,7 @@ func main() {
 	// telling git that everything is dirty in any error case.
 	files := []string{"/"}
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "unable to resolve root") &&
+		if strings.Contains(err.Error(), "unable to resolve root") &&
 			strings.HasSuffix(err.Error(), "is not watched") {
 			watchProject := []interface{}{
 				"watch-project",

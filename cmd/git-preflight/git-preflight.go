@@ -1,28 +1,26 @@
 /*
-
-{
-  // Comments are allowed, this is a JSONR file. See github.com/msolo/jsonr for more details.
-  "triggers": [
-    {
-      // A short name to disambiguate.
-      "name": "gofmt-or-go-home",
-      // Specify how changed files are passed to the command:
-      // args : appended as arguments to the command
-      // args-dirs : unique dirs with changed files appended as arguments to the command
-      // none : nothing is passed to the command
-      // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
-      "input_type": "args",
-      // Run this command when files are matched.
-      "cmd": ["gofmt", "-w"],
-      // Run on modified files that match the given glob. See fnmatch for more details.
-      // Note that ** is not supported.
-      "includes": ["*.go"],
-      // Skip included files that match any of these globs. ** is not supported.
-      "excludes": ["vendor/*"]
-    }
-  ]
-}
-
+	{
+	  // Comments are allowed, this is a JSONR file. See github.com/msolo/jsonr for more details.
+	  "triggers": [
+	    {
+	      // A short name to disambiguate.
+	      "name": "gofmt-or-go-home",
+	      // Specify how changed files are passed to the command:
+	      // args : appended as arguments to the command
+	      // args-dirs : unique dirs with changed files appended as arguments to the command
+	      // none : nothing is passed to the command
+	      // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.
+	      "input_type": "args",
+	      // Run this command when files are matched.
+	      "cmd": ["gofmt", "-w"],
+	      // Run on modified files that match the given glob. See fnmatch for more details.
+	      // Note that ** is not supported.
+	      "includes": ["*.go"],
+	      // Skip included files that match any of these globs. ** is not supported.
+	      "excludes": ["vendor/*"]
+	    }
+	  ]
+	}
 */
 package main
 
@@ -305,8 +303,6 @@ func runPreflight() {
 		if *dryRun {
 			fmt.Fprintf(os.Stderr, "skipping %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
 			continue
-		} else {
-			fmt.Fprintf(os.Stderr, "running %s: %s\n", tr.Name, strings.Join(gitapi.BashQuote(cmdArgs...), " "))
 		}
 
 		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
@@ -315,6 +311,7 @@ func runPreflight() {
 		cmd.Dir = gitWorkdir
 		if err := cmd.Run(); err != nil {
 			hasError = true
+			fmt.Fprintf(os.Stderr, "failed %s: %s\n", tr.Name, err)
 		}
 	}
 

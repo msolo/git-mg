@@ -110,7 +110,7 @@ func (wd *gitWorkDir) gitCommand(args ...string) *Cmd {
 
 func GetMergeBaseCommitHash(workdir string) (string, error) {
 	gwd := gitWorkDir{workdir}
-	gitCmd := gwd.gitCommand("merge-base", "origin/master", "HEAD")
+	gitCmd := gwd.gitCommand("merge-base", "@{upstream}", "HEAD")
 	out, err := gitCmd.Output()
 	if err != nil {
 		return "", err

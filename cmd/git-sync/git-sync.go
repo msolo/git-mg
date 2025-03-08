@@ -115,7 +115,7 @@ the target for rsync operations.
 If core.fsmonitor is configured it will be used to find changes quickly.
 `,
 	Flags: []cmdflag.Flag{
-		{"timeout", cmdflag.FlagTypeDuration, 0 * time.Millisecond, "timeout for command execution", nil},
+		{"timeout", cmdflag.FlagTypeDuration, 0 * time.Millisecond, "timeout for command execution", cmdflag.PredictNothing},
 	},
 	Args: cmdflag.PredictNothing, // TODO(msolo) Add support for picking a specific remote.
 }

@@ -24,6 +24,7 @@ This is an annotated sample config that runs gofmt on all changed *.go files tha
       "name": "gofmt-or-go-home",
       // Specify how changed files are passed to the command:
       // args : appended as arguments to the command
+      // args-existing : appended as arguments to the command where each exists on the filesystem
       // args-dirs : unique dirs with changed files appended as arguments to the command
       // none : nothing is passed to the command
       // TODO(msolo) Implement json, null-terminated and line-terminated options on stdin.

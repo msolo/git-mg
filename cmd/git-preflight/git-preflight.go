@@ -42,9 +42,10 @@ import (
 )
 
 const (
-	InputTypeArgs     = "args"
-	InputTypeArgsDirs = "args-dirs"
-	InputTypeNone     = "none"
+	InputTypeArgs         = "args"
+	InputTypeArgsExisting = "args-existing"
+	InputTypeArgsDirs     = "args-dirs"
+	InputTypeNone         = "none"
 )
 
 // Define a command that will be executed when a relevant file changed.
@@ -106,7 +107,7 @@ func validateTrigger(tr *TriggerConfig) error {
 	}
 
 	switch tr.InputType {
-	case InputTypeNone, InputTypeArgs, InputTypeArgsDirs:
+	case InputTypeNone, InputTypeArgs, InputTypeArgsDirs, InputTypeArgsExisting:
 	default:
 		return fmt.Errorf("invalid trigger input type %q for trigger %s", tr.InputType, tr.Name)
 	}
@@ -170,6 +171,14 @@ func isDir(fname string) bool {
 		return false
 	}
 	return fi.IsDir()
+}
+
+func fileExists(fname string) bool {
+	_, err := os.Stat(fname)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // Return unique sorted list of parent directories for the given file set.
@@ -291,6 +300,12 @@ func runPreflight() {
 		cmdArgs = append(cmdArgs, tr.Cmd...)
 		if tr.InputType == InputTypeArgs {
 			cmdArgs = append(cmdArgs, fnames...)
+		} else if tr.InputType == InputTypeArgsExisting {
+			for _, f := range fnames {
+				if fileExists(f) {
+					cmdArgs = append(cmdArgs, f)
+				}
+			}
 		} else if tr.InputType == InputTypeArgsDirs {
 			dirs := files2dirs(fnames...)
 			cmdArgs = append(cmdArgs, dirs...)

@@ -226,21 +226,27 @@ func runPreflight() {
 		exitOnError(err)
 	} else {
 		mergeBaseHash, err := gitapi.GetMergeBaseCommitHash(gitWorkdir)
-		exitOnError(err)
-		committedFiles, err := gitapi.GetGitDiffChanges(gitWorkdir, mergeBaseHash)
-		exitOnError(err)
-		unstagedFiles, err := gitapi.GetGitUnstagedChanges(gitWorkdir)
-		exitOnError(err)
-		stagedFiles, err := gitapi.GetGitStagedChanges(gitWorkdir)
-		exitOnError(err)
+		if err != nil {
+			log.Warningf("unable to resolve upstream - defaulting to all tracked files: %s", err)
+			changedFiles, err = gitapi.GetGitTrackedFiles(gitWorkdir)
+			exitOnError(err)
+		} else {
+			exitOnError(err)
+			committedFiles, err := gitapi.GetGitDiffChanges(gitWorkdir, mergeBaseHash)
+			exitOnError(err)
+			unstagedFiles, err := gitapi.GetGitUnstagedChanges(gitWorkdir)
+			exitOnError(err)
+			stagedFiles, err := gitapi.GetGitStagedChanges(gitWorkdir)
+			exitOnError(err)
 
-		changedFileSet := make(map[string]bool, 64)
-		for _, fnames := range [][]string{committedFiles, unstagedFiles, stagedFiles} {
-			for _, fname := range fnames {
-				changedFileSet[fname] = true
+			changedFileSet := make(map[string]bool, 64)
+			for _, fnames := range [][]string{committedFiles, unstagedFiles, stagedFiles} {
+				for _, fname := range fnames {
+					changedFileSet[fname] = true
+				}
 			}
+			changedFiles = stringSet2Slice(changedFileSet)
 		}
-		changedFiles = stringSet2Slice(changedFileSet)
 	}
 
 	sort.Strings(changedFiles)

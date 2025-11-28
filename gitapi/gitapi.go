@@ -173,6 +173,17 @@ func GetGitStatus(workdir string) (changedFiles []string, err error) {
 	return changedFiles, err
 }
 
+// Return all files git is tracking.
+func GetGitTrackedFiles(workdir string) (changedFiles []string, err error) {
+	gwd := &gitWorkDir{workdir}
+	cmd := gwd.gitCommand("ls-files", "-z")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	return SplitNullTerminated(string(stdout)), nil
+}
+
 // Return all files that were changed in a given commit.
 func GetGitCommitChanges(workdir string, commitHash string) (changedFiles []string, err error) {
 	gwd := &gitWorkDir{workdir}
